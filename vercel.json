@@ -3,12 +3,8 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/api/subscribe",
-      "destination": "/api/subscribe.js"
-    },
-    {
-      "source": "/api/stats",
-      "destination": "/api/stats.js"
+      "source": "/api/push-subscribe",
+      "destination": "/api/push-subscribe.js"
     },
     {
       "source": "/(.*)",

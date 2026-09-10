@@ -472,51 +472,108 @@
     }
   }
 
-  // 7. Browser Notification Alert
+  // 7. Web Push Notifications (works even when the tab is closed)
+  const VAPID_PUBLIC_KEY = 'BFtiNKeHUlM4wpnNg7Bbn9zcvcz2N987mNjHNDkfDKYRVr95-YoHDPy6KPCBGIA1fKkYgzn_DmoNGhYnFkNfWIM';
+  let swRegistration = null;
+
+  // Convert URL-safe base64 VAPID key to Uint8Array for PushManager
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      swRegistration = registration;
+      return registration;
+    } catch (err) {
+      console.error('Service Worker registration failed:', err);
+      return null;
+    }
+  }
+
+  async function checkExistingSubscription() {
+    if (!swRegistration) return;
+    try {
+      const subscription = await swRegistration.pushManager.getSubscription();
+      if (subscription) {
+        if (browserAlertBtn) browserAlertBtn.classList.add('enabled');
+        if (browserPillText) browserPillText.textContent = 'Alerts Active ✓';
+      }
+    } catch (_) {}
+  }
+
   function updateBrowserAlertState() {
-    if (!('Notification' in window)) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       if (browserAlertBtn) browserAlertBtn.disabled = true;
-      if (browserPillText) browserPillText.textContent = 'Alerts unsupported';
+      if (browserPillText) browserPillText.textContent = 'Push unsupported';
       return;
     }
 
-    if (Notification.permission === 'granted') {
-      if (browserAlertBtn) browserAlertBtn.classList.add('enabled');
-      if (browserPillText) browserPillText.textContent = 'Alerts Active ✓';
-    } else if (Notification.permission === 'denied') {
+    if (Notification.permission === 'denied') {
       if (browserPillText) browserPillText.textContent = 'Alerts Blocked';
-    } else {
-      if (browserPillText) browserPillText.textContent = 'Browser Alert';
+      if (browserAlertBtn) browserAlertBtn.disabled = true;
     }
   }
 
   if (browserAlertBtn) {
     browserAlertBtn.addEventListener('click', async () => {
-      if (!('Notification' in window)) return;
-
-      if (Notification.permission === 'granted') {
-        new Notification('GTA 6 Launch Alert Active', {
-          body: 'GTA Clock countdown alert is active for November 19, 2026 at 00:00!',
-          icon: '/assets/gta-vi-logo.png'
-        });
-        showStatus('✓ Browser notifications are already enabled!', 'success');
+      if (!swRegistration) {
+        showStatus('Service Worker not ready. Please refresh the page.', 'error');
         return;
       }
 
+      // Check if already subscribed
+      try {
+        const existing = await swRegistration.pushManager.getSubscription();
+        if (existing) {
+          showStatus('✓ Push notifications are already active! You\'ll be notified at launch.', 'success');
+          return;
+        }
+      } catch (_) {}
+
+      // Request permission and subscribe
       try {
         const permission = await Notification.requestPermission();
-        updateBrowserAlertState();
-        if (permission === 'granted') {
-          new Notification('GTA 6 Launch Alert Activated', {
-            body: 'Countdown locked in! We will notify you when GTA 6 releases on November 19, 2026 at 00:00.',
-            icon: '/assets/gta-vi-logo.png'
-          });
-          showStatus('✓ Browser alert enabled! You will receive a notification at launch.', 'success');
+        if (permission !== 'granted') {
+          updateBrowserAlertState();
+          showStatus('Notification permission was denied. Enable it in your browser settings.', 'error');
+          return;
+        }
+
+        // Subscribe to push via the Service Worker
+        const subscription = await swRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        // Send subscription to our server
+        const response = await fetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subscription.toJSON())
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          if (browserAlertBtn) browserAlertBtn.classList.add('enabled');
+          if (browserPillText) browserPillText.textContent = 'Alerts Active ✓';
+          showStatus('✓ Push notification locked in! You\'ll be notified even with the tab closed.', 'success');
         } else {
-          showStatus('Browser notification permission was denied.', 'error');
+          showStatus('Could not save subscription. Please try again.', 'error');
         }
       } catch (err) {
-        console.error('Browser alert error:', err);
+        console.error('Push subscription error:', err);
+        showStatus('Could not enable push notifications. Please try again.', 'error');
       }
     });
   }
@@ -541,7 +598,13 @@
 
   // 1-second countdown interval
   setInterval(updateCountdown, 1000);
-  updateBrowserAlertState();
+
+  // Register Service Worker and check push state
+  registerServiceWorker().then(() => {
+    updateBrowserAlertState();
+    checkExistingSubscription();
+  });
+
   setupCalendar();
 
 })();

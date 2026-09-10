@@ -298,12 +298,6 @@ body {
   transform: translateY(1px);
 }
 
-.meta-tz {
-  color: #ff9ed2;
-  font-weight: 600;
-  font-size: 13px;
-}
-
 /* Platforms Pre-Order Hub */
 .platforms-hub {
   width: 100%;

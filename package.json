@@ -2,10 +2,12 @@
   "name": "gtaclock",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "generate-vapid": "npx web-push generate-vapid-keys",
+    "send-push": "node scripts/send-push.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,6 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "resend": "^6.26.0"
+    "web-push": "^3.6.7"
   }
 }
