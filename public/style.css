@@ -1354,15 +1354,14 @@ body.hide-bloom .backdrop-bloom {
   margin-top: 14px;
 }
 
-/* ---------- Preset Strip (inside Customize panel) ---------- */
+/* ---------- Preset Strip (inside Customize panel, 2x2 grid) ---------- */
 .preset-strip {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
 }
 
 .preset-strip-btn {
-  flex: 1 1 30%;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -1370,12 +1369,12 @@ body.hide-bloom .backdrop-bloom {
   font-family: var(--font-display);
   font-size: 11px;
   font-weight: 600;
-  padding: 7px 4px;
+  padding: 8px 6px;
+  min-height: 32px;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  line-height: 1.3;
 }
 
 .preset-strip-btn:hover {
@@ -1430,14 +1429,16 @@ body.hide-bloom .backdrop-bloom {
 
 .preset-cards {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+  align-items: stretch;
 }
 
 .preset-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
@@ -1446,6 +1447,8 @@ body.hide-bloom .backdrop-bloom {
   transition: all 0.18s ease;
   color: #ffffff;
   font-family: var(--font-body);
+  text-align: center;
+  align-items: stretch;
 }
 
 .preset-card:hover {
@@ -1464,7 +1467,9 @@ body.hide-bloom .backdrop-bloom {
   font-size: 11px;
   color: var(--text-muted);
   line-height: 1.4;
-  min-height: 30px;
+  /* Fixed two-line block so names/descriptions baseline-align across cards
+     regardless of how each description wraps. */
+  min-height: 2.8em;
 }
 
 /* Schematic mini preview of the page under each preset */
@@ -1481,6 +1486,9 @@ body.hide-bloom .backdrop-bloom {
   justify-content: center;
   gap: 4px;
   padding: 6px 4px;
+  /* Equal-height anchor: every card's preview occupies the same box so the
+     digit rows land at the same height despite differing row sets. */
+  flex: 1 0 auto;
 }
 
 .preset-preview.has-bloom {
