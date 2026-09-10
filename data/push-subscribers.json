@@ -6,6 +6,10 @@
       "auth": "70cTQP0-OkQ2eG_H_5Koug",
       "p256dh": "BAV0hRRFLfGywsfwxlKoj_KkEiGvv2VECBP9fB_g9-GVdyVBXtTqXjhYuR6Uphcq8-vz4IL8O9SfM-NA0ZziDeg"
     },
-    "subscribedAt": "2026-09-10T04:51:05.852Z"
+    "subscribedAt": "2026-09-10T04:51:05.852Z",
+    "timezone": "Asia/Kathmandu",
+    "targetUtc": 1795025700000,
+    "notifiedAt": null,
+    "updatedAt": "2026-09-10T06:27:50.898Z"
   }
 ]

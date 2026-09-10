@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "generate-vapid": "npx web-push generate-vapid-keys",
-    "send-push": "node scripts/send-push.js"
+    "send-push": "node scripts/send-push.js",
+    "backgrounds": "node scripts/build-backgrounds.js"
   },
   "keywords": [],
   "author": "",

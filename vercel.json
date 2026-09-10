@@ -7,8 +7,34 @@
       "destination": "/api/push-subscribe.js"
     },
     {
+      "source": "/api/push-unsubscribe",
+      "destination": "/api/push-unsubscribe.js"
+    },
+    {
+      "source": "/api/push-update",
+      "destination": "/api/push-update.js"
+    },
+    {
+      "source": "/api/backgrounds",
+      "destination": "/api/backgrounds.js"
+    },
+    {
+      "source": "/api/ost",
+      "destination": "/api/ost.js"
+    },
+    {
+      "source": "/api/cron/dispatch",
+      "destination": "/api/cron/dispatch.js"
+    },
+    {
       "source": "/(.*)",
       "destination": "/public/$1"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/dispatch",
+      "schedule": "0 0 * * *"
     }
   ]
 }

@@ -1,73 +1,80 @@
 #!/usr/bin/env node
-// GTA CLOCK — Send Push Notifications to All Subscribers
-// Usage: node scripts/send-push.js [--message "Custom message"]
+// GTA CLOCK — Send due push notifications (timezone-aware)
+// Usage:
+//   node scripts/send-push.js                  # send only due (targetUtc <= now, not yet notified)
+//   node scripts/send-push.js --all            # force-send to ALL subscribers (ignores due/notified)
+//   node scripts/send-push.js --dry-run        # show what would be sent, send nothing
+//   node scripts/send-push.js --message "..."  # (with --all) custom body for manual blast
 //
-// Run this script at launch time (Nov 19, 2026 00:00) to blast notifications
-// to all saved push subscribers. Can be triggered manually, via Vercel Cron,
-// GitHub Actions, or any scheduler.
+// In production you don't need this script: the in-process scheduler
+// (server.js, Render) and /api/cron/dispatch (Vercel Cron / external cron)
+// call the same dispatcher automatically every minute.
 
 require('dotenv').config();
 const webpush = require('web-push');
-const { getAllPushSubscriptions } = require('../lib/push-subscribers');
+const { getAllPushSubscriptions, getDuePushSubscriptions, markPushNotified, prunePushSubscription } = require('../lib/push-subscribers');
+const { ensureVapid } = require('../lib/dispatch');
 
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:admin@gtaclock.com';
-
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  console.error('ERROR: VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set in .env');
-  process.exit(1);
-}
-
-webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-
-// Parse optional custom message from CLI args
 const args = process.argv.slice(2);
+const forceAll = args.includes('--all');
+const dryRun = args.includes('--dry-run');
 let customMessage = null;
 const msgIdx = args.indexOf('--message');
-if (msgIdx !== -1 && args[msgIdx + 1]) {
-  customMessage = args[msgIdx + 1];
+if (msgIdx !== -1 && args[msgIdx + 1]) customMessage = args[msgIdx + 1];
+
+if (!ensureVapid()) process.exit(1);
+
+function buildPayload(sub) {
+  return JSON.stringify({
+    title: 'GTA 6 is HERE! 🎮',
+    body: customMessage || 'Grand Theft Auto VI has launched in your timezone — the countdown is over, go play!',
+    icon: '/assets/gta-vi-logo.png',
+    badge: '/assets/gta-vi-logo.png',
+    url: 'https://gtaclock.com',
+    timezone: sub.timezone || undefined,
+    targetUtc: sub.targetUtc || undefined
+  });
 }
 
-const payload = JSON.stringify({
-  title: 'GTA 6 is HERE! 🎮',
-  body: customMessage || 'Grand Theft Auto VI has launched! The countdown is over — go play!',
-  icon: '/assets/gta-vi-logo.png',
-  badge: '/assets/gta-vi-logo.png',
-  url: 'https://gtaclock.com'
-});
+async function main() {
+  const list = forceAll ? await getAllPushSubscriptions() : await getDuePushSubscriptions(Date.now());
 
-async function sendToAll() {
-  const subscriptions = await getAllPushSubscriptions();
-
-  if (!subscriptions || subscriptions.length === 0) {
-    console.log('No push subscribers found.');
+  if (!list || list.length === 0) {
+    console.log(forceAll ? 'No push subscribers found.' : 'No due push subscribers found (all timers in the future or already notified).');
     return;
   }
 
-  console.log(`Sending push notification to ${subscriptions.length} subscriber(s)...`);
+  console.log(`${dryRun ? '[DRY RUN] Would send' : 'Sending push notification'} to ${list.length} subscriber(s)...`);
+  for (const s of list) {
+    console.log(`  - ${s.timezone || '?'} target=${s.targetUtc ? new Date(s.targetUtc).toISOString() : '?'} notified=${s.notifiedAt || 'no'} :: ${String(s.endpoint).slice(0, 60)}...`);
+  }
+  if (dryRun) return;
 
   let success = 0;
   let failed = 0;
+  let pruned = 0;
 
-  for (const sub of subscriptions) {
+  for (const sub of list) {
     try {
-      await webpush.sendNotification(sub, payload);
+      await webpush.sendNotification(sub, buildPayload(sub));
+      await markPushNotified(sub.endpoint);
       success++;
     } catch (err) {
-      failed++;
       if (err.statusCode === 410 || err.statusCode === 404) {
-        console.log(`  Subscription expired/invalid: ${sub.endpoint.slice(0, 60)}...`);
+        console.log(`  Pruned expired: ${String(sub.endpoint).slice(0, 60)}...`);
+        await prunePushSubscription(sub.endpoint);
+        pruned++;
       } else {
+        failed++;
         console.error(`  Failed: ${err.message}`);
       }
     }
   }
 
-  console.log(`\nDone! Sent: ${success}, Failed: ${failed}`);
+  console.log(`\nDone! Sent: ${success}, Failed: ${failed}, Pruned: ${pruned}`);
 }
 
-sendToAll().catch(err => {
+main().catch(err => {
   console.error('Fatal error:', err);
   process.exit(1);
 });

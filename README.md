@@ -48,6 +48,23 @@ If you want an independent cloud database directly on Vercel:
 
 ---
 
+## Custom Backgrounds
+
+Drop any image (`.jpg`, `.png`, `.webp`, `.gif`, `.avif`) into `public/backgrounds/` and it appears automatically in the Customize panel (top-right sliders icon) — no code changes needed. Display names are generated from the filename (`neon-streets.jpg` → "Neon Streets").
+
+- Local / Render: picked up live via `GET /api/backgrounds` (rescanned on every server boot too).
+- Vercel static deploy: run `npm run backgrounds` before committing so `manifest.json` ships with your new images.
+- The **Artwork slideshow** toggle in the same panel cycles all backgrounds with a slow Ken Burns zoom/pan crossfade, like the GTA loading screens (8s per artwork).
+
+## Radio (OST)
+
+Drop audio files (`.mp3`, `.ogg`, `.wav`, `.m4a`, `.flac`) into `public/ost/` and they appear automatically in the speaker-icon Radio panel — pick a track (default: GTA VI OST) and adjust volume. Track + volume persist across visits; playback always starts paused (browsers require a tap before audio may play).
+
+- Local / Render: picked up live via `GET /api/ost`.
+- Vercel static deploy: run `npm run backgrounds` before committing so `ost/manifest.json` ships with your new tracks.
+
+---
+
 ## Architecture for Vercel
 
 ```

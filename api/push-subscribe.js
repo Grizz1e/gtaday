@@ -1,5 +1,17 @@
-// Vercel Serverless Function: POST /api/push-subscribe
+// Vercel Serverless Function: POST /api/push-subscribe (timezone-aware)
 const { savePushSubscription } = require('../lib/push-subscribers');
+const { normalizeTimeZone } = require('../lib/launch-time');
+
+function extractSubscribeBody(body) {
+  if (!body || typeof body !== 'object') return { subscription: null, timezone: null };
+  if (body.subscription && typeof body.subscription === 'object') {
+    return {
+      subscription: body.subscription,
+      timezone: body.timezone || body.subscription.timezone || null
+    };
+  }
+  return { subscription: body, timezone: body.timezone || null };
+}
 
 module.exports = async function handler(req, res) {
   // CORS
@@ -20,7 +32,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const subscription = req.body;
+    const { subscription, timezone } = extractSubscribeBody(req.body);
 
     if (!subscription || !subscription.endpoint || !subscription.keys) {
       return res.status(400).json({
@@ -29,7 +41,8 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const result = await savePushSubscription(subscription);
+    const tz = normalizeTimeZone(timezone || 'UTC');
+    const result = await savePushSubscription(subscription, tz);
     return res.status(200).json(result);
   } catch (error) {
     console.error('Push subscribe error:', error);

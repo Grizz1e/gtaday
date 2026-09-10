@@ -1,0 +1,35 @@
+# Render deploy config — recommended host for per-minute timezone push.
+# Vercel Hobby cron can only fire ONCE PER DAY (±60 min), so exact per-timezone
+# midnight delivery needs either Vercel Pro or a long-lived server. This file
+# deploys a single always-on Web Service whose in-process scheduler checks
+# due subscriptions every 60s and sends Web Push (works with closed tabs).
+services:
+  - type: web
+    name: gtaclock
+    runtime: node
+    plan: starter # 'starter' ($7/mo) never sleeps. 'free' sleeps after 15 min idle — pair with an external pinger.
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: SCHEDULER_ENABLED
+        value: 1
+      - key: SCHEDULER_INTERVAL_MS
+        value: 60000
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_EMAIL
+        value: mailto:admin@gtaclock.com
+      - key: CRON_SECRET
+        generateValue: true
+      # Persistent push storage (required — Render filesystem is ephemeral
+      # without a disk, same as Vercel). Create a free Upstash Redis and paste:
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
