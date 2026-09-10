@@ -51,6 +51,8 @@ body {
   /* Contain backdrop paint so the per-second countdown transitions
      can't cause repaint-coupled shimmer on the background layers. */
   isolation: isolate;
+  contain: strict;
+  content-visibility: auto;
 }
 
 .backdrop-art {
@@ -95,7 +97,11 @@ body {
   width: 600px;
   height: 320px;
   background: radial-gradient(circle, rgba(255, 42, 141, 0.18) 0%, rgba(255, 142, 60, 0.08) 50%, transparent 70%);
-  filter: blur(80px);
+  /* 80px blur is a full-screen paint cost on every frame while backdrops
+     animate — 48px keeps the glow with ~40% less blur work. Hidden entirely
+     via body.hide-bloom when the user disables it. */
+  filter: blur(48px);
+  contain: strict;
 }
 
 /* Hero Center Stage */
@@ -131,7 +137,8 @@ body {
   height: calc(88px * var(--emblem-scale, 1));
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 30px rgba(255, 42, 141, 0.45)) drop-shadow(0 0 16px rgba(255, 142, 60, 0.3));
+  /* Single drop-shadow: the second 16px glow doubled filter cost for little gain. */
+  filter: drop-shadow(0 8px 30px rgba(255, 42, 141, 0.45));
   transition: transform 0.3s ease;
 }
 
@@ -196,7 +203,9 @@ body {
   text-shadow: 0 3px 8px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.85);
   font-variant-numeric: tabular-nums;
   will-change: transform, opacity;
+  /* transform/opacity only: keeps digit slides on the compositor. */
   transition: transform 0.68s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+  contain: layout paint;
 }
 
 .char-val.current {
@@ -335,10 +344,11 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
   text-decoration: none;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* backdrop-filter forces a backdrop snapshot per card — keep it only where
+     legibility needs it; cards already have an opaque gradient. */
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  contain: layout paint;
 }
 
 .platform-brand {
@@ -426,10 +436,9 @@ body {
   font-weight: 600;
   letter-spacing: 0.3px;
   cursor: pointer;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  contain: layout paint;
 }
 
 .action-pill svg {
@@ -836,10 +845,8 @@ body {
   border-radius: 50%;
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
 }
 
 .icon-btn:hover {
@@ -1143,8 +1150,8 @@ body.hide-bloom .backdrop-bloom {
   opacity: 1;
 }
 
-/* Subtle zoom/pan drifts, held slightly longer than each slide so the
-   motion continues underneath the crossfade — like the game. */
+/* Subtle zoom/pan drifts, held slightly longer than each slide (10s hold /
+   12s drift) so the motion continues underneath the crossfade — like the game. */
 @keyframes kb-zoom-in {
   from { transform: scale(1.03) translate(0, 0); }
   to { transform: scale(1.14) translate(-1%, -1%); }
@@ -1166,19 +1173,19 @@ body.hide-bloom .backdrop-bloom {
 }
 
 .backdrop-art.kb-zoom-in {
-  animation: kb-zoom-in 9.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-zoom-in 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .backdrop-art.kb-zoom-out {
-  animation: kb-zoom-out 9.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-zoom-out 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .backdrop-art.kb-pan-left {
-  animation: kb-pan-left 9.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-pan-left 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .backdrop-art.kb-pan-right {
-  animation: kb-pan-right 9.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-pan-right 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .slideshow-row {
@@ -1209,8 +1216,11 @@ body.hide-bloom .backdrop-bloom {
   background-position: center 30%;
   background-repeat: no-repeat;
   will-change: transform;
+  /* Compositor hint: translated/scaled every 10s glide, never repainted. */
+  transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  contain: strict;
 }
 
 .px-back {

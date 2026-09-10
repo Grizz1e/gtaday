@@ -3,19 +3,22 @@
     "kind": "flat",
     "file": "01.jpg",
     "name": "01",
-    "url": "/backgrounds/01.jpg"
+    "url": "/backgrounds/01.jpg",
+    "thumb": "/backgrounds/.optimized/01.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "02.jpg",
     "name": "02",
-    "url": "/backgrounds/02.jpg"
+    "url": "/backgrounds/02.jpg",
+    "thumb": "/backgrounds/.optimized/02.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Beach.jpg",
     "name": "Beach",
-    "url": "/backgrounds/Beach.jpg"
+    "url": "/backgrounds/Beach.jpg",
+    "thumb": "/backgrounds/.optimized/Beach.thumb.jpg"
   },
   {
     "kind": "parallax",
@@ -30,25 +33,29 @@
     "kind": "flat",
     "file": "Brian-Heder.jpg",
     "name": "Brian Heder",
-    "url": "/backgrounds/Brian-Heder.jpg"
+    "url": "/backgrounds/Brian-Heder.jpg",
+    "thumb": "/backgrounds/.optimized/Brian-Heder.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Cal-Hampton.jpg",
     "name": "Cal Hampton",
-    "url": "/backgrounds/Cal-Hampton.jpg"
+    "url": "/backgrounds/Cal-Hampton.jpg",
+    "thumb": "/backgrounds/.optimized/Cal-Hampton.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "DreQuan-Priest.jpg",
     "name": "DreQuan Priest",
-    "url": "/backgrounds/DreQuan-Priest.jpg"
+    "url": "/backgrounds/DreQuan-Priest.jpg",
+    "thumb": "/backgrounds/.optimized/DreQuan-Priest.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Motel.jpg",
     "name": "Motel",
-    "url": "/backgrounds/Motel.jpg"
+    "url": "/backgrounds/Motel.jpg",
+    "thumb": "/backgrounds/.optimized/Motel.thumb.jpg"
   },
   {
     "kind": "parallax",
@@ -63,12 +70,14 @@
     "kind": "flat",
     "file": "Real-Dimez.jpg",
     "name": "Real Dimez",
-    "url": "/backgrounds/Real-Dimez.jpg"
+    "url": "/backgrounds/Real-Dimez.jpg",
+    "thumb": "/backgrounds/.optimized/Real-Dimez.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Robbery.jpg",
     "name": "Robbery",
-    "url": "/backgrounds/Robbery.jpg"
+    "url": "/backgrounds/Robbery.jpg",
+    "thumb": "/backgrounds/.optimized/Robbery.thumb.jpg"
   }
 ]

@@ -27,6 +27,19 @@ function prettyName(file) {
     .join(' ') || file;
 }
 
+// Points at the prebuilt 320w thumb when `npm run optimize-images` has
+// generated one, otherwise null (client falls back to the full url).
+function optimizedThumbUrl(publicUrl) {
+  const rel = String(publicUrl || '').replace(/^\//, '');
+  if (!rel) return null;
+  const thumbRel = rel.replace(/\.[^.]+$/, '.thumb.jpg');
+  const abs = path.join(OPTIMIZED_DIR, thumbRel.replace(/^backgrounds\//, 'backgrounds/'));
+  try {
+    if (fs.existsSync(abs)) return `/backgrounds/.optimized/${thumbRel.replace(/^backgrounds\//, '')}`;
+  } catch (_) {}
+  return null;
+}
+
 function scanBackgrounds() {
   let names = [];
   try {
@@ -45,11 +58,13 @@ function scanBackgrounds() {
       IMAGE_EXTS.has(path.extname(ent.name).toLowerCase()) &&
       ent.name.toLowerCase() !== 'manifest.json'
     ) {
+      const url = `/backgrounds/${ent.name}`;
       entries.push({
         kind: 'flat',
         file: ent.name,
         name: prettyName(ent.name),
-        url: `/backgrounds/${ent.name}`
+        url,
+        thumb: optimizedThumbUrl(url) || url
       });
     }
   }
@@ -115,13 +130,75 @@ function scanDir(dir, exts, urlPrefix) {
 }
 
 function writeManifest(manifestPath, entries) {
+  const next = JSON.stringify(entries, null, 2) + '\n';
   try {
-    fs.writeFileSync(manifestPath, JSON.stringify(entries, null, 2) + '\n');
+    // Skip the write when nothing changed: keeps Render boot fast and
+    // avoids touching the read-only FS timestamp on Vercel.
+    const prev = fs.readFileSync(manifestPath, 'utf-8');
+    if (prev === next) return true;
+  } catch (_) {}
+  try {
+    fs.writeFileSync(manifestPath, next);
   } catch (err) {
     console.warn('Could not write manifest:', manifestPath, err.message);
     return false;
   }
   return true;
+}
+
+// ---- Image optimization (npm run optimize-images) ----
+// Re-encodes oversized heroes to bounded WebP/AVIF + tiny blurred thumbs for
+// the Customize grid. Sharp is a devDependency: if it isn't installed the
+// step logs a warning and the existing JPGs keep serving untouched.
+// Heroes cap at 1920w q75 (the 2MB+ JPGs drop to ~200-400KB); thumbs are
+// 320w q50 (~10-20KB) instead of reusing the full hero.
+const OPTIMIZED_DIR = path.join(BACKGROUNDS_DIR, '.optimized');
+const HERO_MAX_W = 1920;
+const THUMB_W = 320;
+
+async function optimizeImages() {
+  let sharp;
+  try {
+    sharp = require('sharp');
+  } catch (_) {
+    console.warn('sharp not installed — skipping image optimization (npm i -D sharp to enable).');
+    return { skipped: true };
+  }
+  const entries = scanBackgrounds();
+  let done = 0;
+  for (const entry of entries) {
+    const sources = entry.kind === 'parallax'
+      ? [entry.background, entry.foreground, entry.full].filter(Boolean)
+      : [entry.url];
+    for (const url of sources) {
+      const rel = url.replace(/^\//, '');
+      const src = path.join(__dirname, '..', 'public', rel);
+      if (!fs.existsSync(src)) continue;
+      const ext = path.extname(src).toLowerCase();
+      if (ext === '.gif') continue; // never re-encode animation
+      const base = path.join(OPTIMIZED_DIR, rel);
+      const webp = base.replace(/\.[^.]+$/, '.webp');
+      const thumb = base.replace(/\.[^.]+$/, '.thumb.jpg');
+      const newest = [webp, thumb].every((f) => {
+        try { return fs.statSync(f).mtimeMs >= fs.statSync(src).mtimeMs; } catch (_) { return false; }
+      });
+      if (newest) continue;
+      for (const f of [webp, thumb]) {
+        try { fs.mkdirSync(path.dirname(f), { recursive: true }); } catch (_) {}
+      }
+      await sharp(src).rotate().resize({ width: HERO_MAX_W, withoutEnlargement: true })
+        .webp({ quality: 75 }).toFile(webp).catch((e) => console.warn('webp skip', rel, e.message));
+      await sharp(src).rotate().resize({ width: THUMB_W, withoutEnlargement: true })
+        .jpeg({ quality: 50, progressive: true }).toFile(thumb).catch((e) => console.warn('thumb skip', rel, e.message));
+      done++;
+    }
+    if (entry.kind === 'parallax' && entry.thumb === entry.full) {
+      const thumbUrl = entry.full ? entry.full.replace(/\.[^.]+$/, '.thumb.jpg').replace('/backgrounds/', '/backgrounds/.optimized/') : null;
+      if (thumbUrl) entry.thumb = thumbUrl;
+    }
+  }
+  if (done) console.log(`optimized ${done} image(s) -> ${OPTIMIZED_DIR}`);
+  return { optimized: done };
 }
 
 function buildManifest() {
@@ -137,7 +214,12 @@ function buildManifest() {
 }
 
 if (require.main === module) {
-  buildManifest();
+  (async () => {
+    if (process.argv.includes('--optimize')) {
+      await optimizeImages().catch((err) => console.warn('optimize skipped:', err.message));
+    }
+    buildManifest();
+  })();
 }
 
-module.exports = { buildManifest, scanBackgrounds, scanOst, BACKGROUNDS_DIR };
+module.exports = { buildManifest, scanBackgrounds, scanOst, optimizeImages, BACKGROUNDS_DIR };

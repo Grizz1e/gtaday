@@ -18,6 +18,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet" />
 
+  <!-- LCP fast path: hero backdrop + emblem preload so first paint isn't blocked on CSS discovery -->
+  <link rel="preload" as="image" href="/backgrounds/01.jpg" fetchpriority="high" />
+  <link rel="preload" as="image" href="/assets/gta-vi-logo.png" fetchpriority="high" />
+
   <link rel="stylesheet" href="/style.css" />
   <link rel="icon" type="image/png" href="/assets/gta-vi-logo.png" />
 </head>
@@ -149,7 +153,7 @@
 
       <!-- Official GTA VI Emblem -->
       <div class="hero-logo-wrap">
-        <img src="/assets/gta-vi-logo.png" alt="Grand Theft Auto VI" class="gta-emblem" />
+        <img src="/assets/gta-vi-logo.png" alt="Grand Theft Auto VI" class="gta-emblem" fetchpriority="high" decoding="async" width="320" height="88" />
       </div>
 
       <!-- High-Impact Floating Countdown with Independent Per-Digit Sliding -->
@@ -194,7 +198,7 @@
           <!-- PlayStation 5 -->
           <a href="https://www.playstation.com/en-us/games/grand-theft-auto-vi/" target="_blank" rel="noopener noreferrer" class="platform-card ps5-card" title="Buy / Wishlist on PlayStation">
             <div class="platform-brand">
-              <img src="/assets/ps5.png" alt="PlayStation 5" class="brand-logo" />
+              <img src="/assets/ps5.png" alt="PlayStation 5" class="brand-logo" loading="lazy" decoding="async" width="130" height="23" />
             </div>
             <div class="platform-action">
               <span>BUY</span>
@@ -208,7 +212,7 @@
           <!-- Xbox Series X|S -->
           <a href="https://www.xbox.com/en-US/games/grand-theft-auto-vi" target="_blank" rel="noopener noreferrer" class="platform-card xbox-card" title="Buy / Wishlist on Xbox">
             <div class="platform-brand">
-              <img src="/assets/xbox-series-xs.png" alt="Xbox Series X|S" class="brand-logo" />
+              <img src="/assets/xbox-series-xs.png" alt="Xbox Series X|S" class="brand-logo" loading="lazy" decoding="async" width="130" height="23" />
             </div>
             <div class="platform-action">
               <span>BUY</span>
@@ -322,6 +326,6 @@
     </div>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

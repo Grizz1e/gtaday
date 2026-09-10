@@ -212,12 +212,23 @@
   }
 
   // 3. Per-Digit Independent Sliding Engine
+  // Unit containers are cached: updateCountdown fires every second and the
+  // old code re-ran getElementById + querySelectorAll on each tick.
+  const unitSlotCache = new Map();
+  function getUnitSlots(container, containerId) {
+    let slots = unitSlotCache.get(containerId);
+    if (!slots || slots.some(s => !s.isConnected)) {
+      slots = Array.from(container.querySelectorAll('.char-slot'));
+      unitSlotCache.set(containerId, slots);
+    }
+    return slots;
+  }
   function updateUnitDigits(containerId, newStr) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     const chars = newStr.split('');
-    let slots = Array.from(container.querySelectorAll('.char-slot'));
+    let slots = getUnitSlots(container, containerId);
 
     // First render or length change
     if (slots.length !== chars.length) {
@@ -231,6 +242,7 @@
         slot.appendChild(span);
         container.appendChild(slot);
       });
+      unitSlotCache.set(containerId, Array.from(container.querySelectorAll('.char-slot')));
       return;
     }
 
@@ -303,12 +315,68 @@
     updateUnitDigits('unit-minutes', minsStr);
     updateUnitDigits('unit-seconds', secsStr);
 
-    // Live browser tab title update
-    document.title = `${daysStr}d ${hoursStr}h ${minsStr}m ${secsStr}s — GTA Clock`;
+    // Live browser tab title update (skipped when hidden — same string will
+    // be written on the next visible tick, saves a layout-adjacent op/sec).
+    if (!document.hidden) {
+      document.title = `${daysStr}d ${hoursStr}h ${minsStr}m ${secsStr}s — GTA Clock`;
+    }
+  }
+
+  // Aligned 1s ticker: setTimeout to the next second boundary instead of a
+  // drifting setInterval, so digits flip exactly on the second.
+  function scheduleCountdownTick() {
+    const msToNextSecond = 1000 - (Date.now() % 1000) + 5;
+    setTimeout(() => {
+      updateCountdown();
+      scheduleCountdownTick();
+    }, msToNextSecond);
   }
 
   // 5. Zero-Lag Fast Timezone Search & Render
   let searchDebounceTimer = null;
+  // Rendering ~400 timezone rows each with an Intl offset format blocks the
+  // main thread on modal open. Render in small chunks and cap the initial
+  // paint; offsets for off-screen rows resolve lazily.
+  const TZ_INITIAL_RENDER = 60;
+  const TZ_RENDER_CHUNK = 60;
+
+  function makeTzButton(item, withOffset) {
+    const btn = document.createElement('button');
+    btn.className = 'tz-item';
+    btn.dataset.tz = item.id;
+    if (currentTimeZone && item.id.toLowerCase() === currentTimeZone.toLowerCase()) {
+      btn.classList.add('active');
+    }
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'tz-item-name';
+    nameSpan.textContent = item.name;
+
+    const offsetSpan = document.createElement('span');
+    offsetSpan.className = 'tz-item-offset';
+    offsetSpan.textContent = withOffset ? getFastTzOffset(item.id) : '…';
+    if (!withOffset) {
+      offsetSpan.dataset.tzId = item.id;
+    }
+
+    btn.appendChild(nameSpan);
+    btn.appendChild(offsetSpan);
+
+    btn.addEventListener('click', () => {
+      setTimezone(item.id);
+      closeTimezoneModal();
+      showStatus(`✓ Timezone set to ${item.name}`, 'success');
+    });
+    return btn;
+  }
+
+  function fillLazyOffsets(container) {
+    const pending = container.querySelectorAll('.tz-item-offset[data-tz-id]');
+    pending.forEach(el => {
+      el.textContent = getFastTzOffset(el.dataset.tzId);
+      el.removeAttribute('data-tz-id');
+    });
+  }
 
   function renderTimezoneList(query = '') {
     if (!tzList) return;
@@ -333,38 +401,35 @@
       return;
     }
 
-    // High performance DocumentFragment insertion
+    // High performance DocumentFragment insertion, chunked so the modal
+    // opens instantly even with 400+ zones.
     const fragment = document.createDocumentFragment();
+    const first = filtered.slice(0, TZ_INITIAL_RENDER);
+    const rest = filtered.slice(TZ_INITIAL_RENDER);
 
-    filtered.forEach(item => {
-      const btn = document.createElement('button');
-      btn.className = 'tz-item';
-      btn.dataset.tz = item.id;
-      if (currentTimeZone && item.id.toLowerCase() === currentTimeZone.toLowerCase()) {
-        btn.classList.add('active');
-      }
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'tz-item-name';
-      nameSpan.textContent = item.name;
-
-      const offsetSpan = document.createElement('span');
-      offsetSpan.className = 'tz-item-offset';
-      offsetSpan.textContent = getFastTzOffset(item.id);
-
-      btn.appendChild(nameSpan);
-      btn.appendChild(offsetSpan);
-
-      btn.addEventListener('click', () => {
-        setTimezone(item.id);
-        closeTimezoneModal();
-        showStatus(`✓ Timezone set to ${item.name}`, 'success');
-      });
-
-      fragment.appendChild(btn);
-    });
-
+    first.forEach(item => fragment.appendChild(makeTzButton(item, true)));
     tzList.appendChild(fragment);
+
+    if (rest.length === 0) return;
+    let i = 0;
+    const appendChunk = () => {
+      // Modal closed mid-render: stop.
+      if (!tzList || !tzList.isConnected || tzModal.classList.contains('hidden')) return;
+      const chunkFrag = document.createDocumentFragment();
+      const chunk = rest.slice(i, i + TZ_RENDER_CHUNK);
+      // Offsets for below-the-fold rows are placeholders; filled on idle.
+      chunk.forEach(item => chunkFrag.appendChild(makeTzButton(item, false)));
+      tzList.appendChild(chunkFrag);
+      i += TZ_RENDER_CHUNK;
+      if (i < rest.length) {
+        requestAnimationFrame(appendChunk);
+      } else if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => fillLazyOffsets(tzList));
+      } else {
+        setTimeout(() => fillLazyOffsets(tzList), 50);
+      }
+    };
+    requestAnimationFrame(appendChunk);
   }
 
   function openTimezoneModal() {
@@ -405,7 +470,7 @@
       const query = e.target.value;
       searchDebounceTimer = setTimeout(() => {
         renderTimezoneList(query);
-      }, 50);
+      }, 150);
     });
   }
 
@@ -835,6 +900,7 @@
       bgImg.src = `/backgrounds/${settings.bg}`;
       bgImg.alt = '';
       bgImg.loading = 'lazy';
+      bgImg.decoding = 'async';
       wrap.appendChild(bgImg);
     }
 
@@ -843,6 +909,8 @@
       logo.className = 'pv-logo';
       logo.src = '/assets/gta-vi-logo.png';
       logo.alt = '';
+      logo.loading = 'lazy';
+      logo.decoding = 'async';
       wrap.appendChild(logo);
     }
 
@@ -937,6 +1005,10 @@
     if (seen) return;
     const overlay = document.getElementById('onboardOverlay');
     if (overlay) overlay.classList.remove('hidden');
+    if (renderPresetCards._deferred) {
+      renderPresetCards._deferred = false;
+      renderPresetCards();
+    }
   }
   function disableSlideshowIfOn() {
     if (customSettings.slideshow) {
@@ -964,9 +1036,10 @@
       btn.title = entry.name;
 
       const img = document.createElement('img');
-      img.src = isPx ? entry.thumb : entry.url;
+      img.src = entry.thumb || (isPx ? entry.thumb : entry.url);
       img.alt = entry.name + ' background';
       img.loading = 'lazy';
+      img.decoding = 'async';
 
       const label = document.createElement('span');
       label.textContent = entry.name;
@@ -1043,10 +1116,10 @@
     if (customSettings.slideshow) startSlideshow();
   }
 
-  // GTA loading-screen style slideshow: each artwork holds ~8s with a slow
-  // Ken Burns drift (zoom/pan), then crossfades into the next one drifting a
+  // GTA loading-screen style slideshow: each artwork holds ~10s with a slow
+  // Ken Burns drift (12s zoom/pan), then crossfades into the next one drifting a
   // different way. Two stacked layers alternate front/back duty.
-  const SLIDE_HOLD_MS = 8000;
+  const SLIDE_HOLD_MS = 10000;
   const KB_VARIANTS = ['kb-zoom-in', 'kb-zoom-out', 'kb-pan-left', 'kb-pan-right'];
   let slideshowTimer = null;
   let slideIndex = 0;
@@ -1054,14 +1127,43 @@
   let frontLayer = 0;
 
   function getBackdropLayers() {
-    return Array.from(document.querySelectorAll('.backdrop-art'));
+    if (getBackdropLayers._cache && getBackdropLayers._cache.every(l => l.isConnected)) {
+      return getBackdropLayers._cache;
+    }
+    getBackdropLayers._cache = Array.from(document.querySelectorAll('.backdrop-art'));
+    return getBackdropLayers._cache;
+  }
+
+  // Decode the upcoming slide off-screen so the crossfade never reveals a
+  // half-loaded frame (28MB of heroes otherwise flash on slow networks).
+  function preloadSlideImage(entry) {
+    if (!entry) return;
+    const url = entry.kind === 'parallax' ? (entry.full || entry.background) : entry.url;
+    if (!url || preloadSlideImage._seen?.has(url)) return;
+    (preloadSlideImage._seen || (preloadSlideImage._seen = new Set())).add(url);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+  }
+
+  function preloadNextSlide() {
+    if (availableBackgrounds.length < 2) return;
+    const schedule = typeof requestIdleCallback === 'function'
+      ? (fn) => requestIdleCallback(fn, { timeout: 2000 })
+      : (fn) => setTimeout(fn, 500);
+    schedule(() => {
+      preloadSlideImage(availableBackgrounds[(slideIndex + 1) % availableBackgrounds.length]);
+    });
   }
 
   function setLayerImage(layer, url) {
     layer.classList.remove(...KB_VARIANTS);
     layer.style.backgroundImage = `url('${url}')`;
-    void layer.offsetWidth; // restart the drift animation
-    layer.classList.add(KB_VARIANTS[kbIndex++ % KB_VARIANTS.length]);
+    // Double-RAF restart: avoids the forced sync layout of void offsetWidth.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!layer.isConnected) return;
+      layer.classList.add(KB_VARIANTS[kbIndex++ % KB_VARIANTS.length]);
+    }));
   }
 
   // Parallax stage for folder packs: background and foreground layers ease
@@ -1079,10 +1181,10 @@
   // back out 0.5x and vice versa) as well as panning. Nothing ever reverses
   // mid-show. Variants rotate per pack presentation.
   // (drift right / left / push / pull).
-  // Absolute pacing matches the still-image Ken Burns drifts (~6px/s pans,
-  // ~1.2%/s zooms); the foreground only ever wins on the opposition ratio,
-  // never on raw speed.
-  const PX_DRIFT_MS = 8000;
+  // Absolute pacing matches the still-image Ken Burns drifts (~5px/s pans,
+  // ~1%/s zooms over the 10s hold / 10s glide); the foreground only ever wins
+  // on the opposition ratio, never on raw speed.
+  const PX_DRIFT_MS = 10000;
   const PX_DIRECTIONS = [
     {
       back: { x0: 10, y0: 0, s0: 1.03, x1: -10, y1: 0, s1: 1.015 },
@@ -1129,7 +1231,7 @@
   }
 
   // Drive one full glide on the compositor: snap to the start pose, then a
-  // single 8s ease-out transition to the end pose — fast open, slowly
+  // single 10s ease-out transition to the end pose — fast open, slowly
   // coming to a halt. No per-frame JS, so the motion stays smooth no matter
   // how busy the main thread gets — and it parks itself at the end pose
   // when done (no restart, no reversal).
@@ -1240,9 +1342,10 @@
     frontLayer = 0;
 
     displaySlide(availableBackgrounds[slideIndex], true);
+    preloadNextSlide();
 
     if (availableBackgrounds.length > 1) {
-      slideshowTimer = setInterval(advanceSlide, SLIDE_HOLD_MS);
+      scheduleNextSlide();
     }
   }
 
@@ -1298,22 +1401,36 @@
         frontLayer = 1 - frontLayer;
       }
       displaySlide(entry, false);
-      return;
+    } else {
+      hideParallaxStage();
+      const back = layers[1 - frontLayer];
+      const front = layers[frontLayer];
+      setLayerImage(back, entry.url);
+      back.classList.add('slide-visible');
+      back.classList.remove('slide-hidden');
+      front.classList.add('slide-hidden');
+      front.classList.remove('slide-visible');
+      frontLayer = 1 - frontLayer;
     }
-    hideParallaxStage();
-    const back = layers[1 - frontLayer];
-    const front = layers[frontLayer];
-    setLayerImage(back, entry.url);
-    back.classList.add('slide-visible');
-    back.classList.remove('slide-hidden');
-    front.classList.add('slide-hidden');
-    front.classList.remove('slide-visible');
-    frontLayer = 1 - frontLayer;
+    preloadNextSlide();
+  }
+
+  // setTimeout chain (not setInterval): skipped entirely while the tab is
+  // hidden, so background tabs burn no CPU/network on invisible crossfades.
+  function scheduleNextSlide() {
+    clearTimeout(slideshowTimer);
+    if (availableBackgrounds.length < 2) return;
+    slideshowTimer = setTimeout(() => {
+      if (!document.hidden && customSettings.slideshow) {
+        advanceSlide();
+      }
+      scheduleNextSlide();
+    }, SLIDE_HOLD_MS);
   }
 
   function stopSlideshow(silent) {
     if (slideshowTimer) {
-      clearInterval(slideshowTimer);
+      clearTimeout(slideshowTimer);
       slideshowTimer = null;
     }
     clearTimeout(pxFadeTimer);
@@ -1384,6 +1501,10 @@
 
   function openCustomPanel() {
     if (!customPanel) return;
+    if (renderPresetCards._deferred) {
+      renderPresetCards._deferred = false;
+      renderPresetCards();
+    }
     syncCustomPanelControls();
     customPanel.classList.remove('hidden');
     if (customBtn) customBtn.classList.add('active');
@@ -1531,7 +1652,9 @@
     if (audioEl) return audioEl;
     audioEl = new Audio();
     audioEl.loop = true;
-    audioEl.preload = 'auto';
+    // 'none' until the user actually wants music: the three OST files are
+    // ~13MB and preload='auto' fetched one immediately on every page load.
+    audioEl.preload = 'none';
     audioEl.volume = musicSettings.volume;
     audioEl.addEventListener('play', syncPlayUI);
     audioEl.addEventListener('pause', syncPlayUI);
@@ -1587,6 +1710,7 @@
     const audio = ensureAudio();
     if (audio.dataset.file !== track.file) {
       const wasPlaying = !audio.paused && audio.dataset.file;
+      audio.preload = 'auto';
       audio.src = track.url;
       audio.dataset.file = track.file;
       try { audio.load(); } catch (_) {}
@@ -1614,33 +1738,31 @@
   }
 
   // Autoplay the default track. Browsers block audible autoplay until the
-  // user has interacted with the page, so if the first attempt is rejected
-  // we silently start on the very first tap/keypress instead.
+  // user has interacted with the page, so the first attempt is deferred
+  // until the first tap/keypress — and the <audio> element itself isn't even
+  // created (no bytes fetched) until then.
   function tryAutoplay() {
     const track = currentTrack();
     if (!track) return;
-    const audio = ensureAudio();
-    if (audio.dataset.file !== track.file) {
-      audio.src = track.url;
-      audio.dataset.file = track.file;
-      try { audio.load(); } catch (_) {}
-    }
-    if (!audio.paused) return;
-    const p = audio.play();
-    if (p && typeof p.catch === 'function') {
-      p.catch(() => {
-        const resume = () => {
-          document.removeEventListener('pointerdown', resume);
-          document.removeEventListener('keydown', resume);
-          try {
-            const q = ensureAudio().play();
-            if (q && typeof q.catch === 'function') q.catch(() => {});
-          } catch (_) {}
-        };
-        document.addEventListener('pointerdown', resume);
-        document.addEventListener('keydown', resume);
-      });
-    }
+    const resume = () => {
+      document.removeEventListener('pointerdown', resume);
+      document.removeEventListener('keydown', resume);
+      try {
+        const audio = ensureAudio();
+        if (audio.dataset.file !== track.file) {
+          audio.src = track.url;
+          audio.dataset.file = track.file;
+          audio.preload = 'auto';
+          try { audio.load(); } catch (_) {}
+        }
+        if (audio.paused) {
+          const q = audio.play();
+          if (q && typeof q.catch === 'function') q.catch(() => {});
+        }
+      } catch (_) {}
+    };
+    document.addEventListener('pointerdown', resume);
+    document.addEventListener('keydown', resume);
   }
 
   async function loadTracks() {
@@ -1725,12 +1847,29 @@
     });
   }
 
-  // Initialization
+  // Initialization — critical path stays lean: countdown + static paint
+  // first, everything else deferred to idle so LCP isn't blocked by the
+  // preset-card previews, track manifest, or background list.
   initTimezoneDatabase();
   applyCustomSettings();
   loadBackgroundPresets();
-  loadTracks();
-  renderPresetCards();
+  updateCountdown();
+  scheduleCountdownTick();
+
+  const deferIdle = (fn) => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 2500 });
+    else setTimeout(fn, 300);
+  };
+  deferIdle(() => {
+    loadTracks();
+    // Preset previews each embed a background image — only build them when
+    // the onboarding overlay or customize panel is actually shown.
+    if (!document.getElementById('onboardOverlay')?.classList.contains('hidden')) {
+      renderPresetCards();
+    } else {
+      renderPresetCards._deferred = true;
+    }
+  });
 
   const onboardSkip = document.getElementById('onboardSkip');
   if (onboardSkip) {
@@ -1741,8 +1880,8 @@
   const savedTz = localStorage.getItem('gtaclock_tz') || 'auto';
   setTimezone(savedTz);
 
-  // 1-second countdown interval
-  setInterval(updateCountdown, 1000);
+  // Countdown ticker is driven by scheduleCountdownTick() (aligned to the
+  // second boundary) — no setInterval here.
 
   // Register Service Worker and check push state
   registerServiceWorker().then(() => {
