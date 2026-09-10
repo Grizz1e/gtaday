@@ -1,55 +1,72 @@
 [
   {
+    "kind": "flat",
     "file": "01.jpg",
     "name": "01",
     "url": "/backgrounds/01.jpg"
   },
   {
+    "kind": "flat",
     "file": "02.jpg",
     "name": "02",
     "url": "/backgrounds/02.jpg"
   },
   {
+    "kind": "flat",
     "file": "Beach.jpg",
     "name": "Beach",
     "url": "/backgrounds/Beach.jpg"
   },
   {
-    "file": "Boobie-Ike.jpg",
+    "kind": "parallax",
+    "dir": "Boobie-Ike",
     "name": "Boobie Ike",
-    "url": "/backgrounds/Boobie-Ike.jpg"
+    "background": "/backgrounds/Boobie-Ike/background.jpg",
+    "foreground": "/backgrounds/Boobie-Ike/foreground.png",
+    "full": "/backgrounds/Boobie-Ike/full.jpg",
+    "thumb": "/backgrounds/Boobie-Ike/full.jpg"
   },
   {
+    "kind": "flat",
     "file": "Brian-Heder.jpg",
     "name": "Brian Heder",
     "url": "/backgrounds/Brian-Heder.jpg"
   },
   {
+    "kind": "flat",
     "file": "Cal-Hampton.jpg",
     "name": "Cal Hampton",
     "url": "/backgrounds/Cal-Hampton.jpg"
   },
   {
+    "kind": "flat",
     "file": "DreQuan-Priest.jpg",
     "name": "DreQuan Priest",
     "url": "/backgrounds/DreQuan-Priest.jpg"
   },
   {
+    "kind": "flat",
     "file": "Motel.jpg",
     "name": "Motel",
     "url": "/backgrounds/Motel.jpg"
   },
   {
-    "file": "Raul-Bautista.jpg",
+    "kind": "parallax",
+    "dir": "Raul-Bautista",
     "name": "Raul Bautista",
-    "url": "/backgrounds/Raul-Bautista.jpg"
+    "background": "/backgrounds/Raul-Bautista/background.png",
+    "foreground": "/backgrounds/Raul-Bautista/foreground.png",
+    "full": "/backgrounds/Raul-Bautista/full.jpg",
+    "thumb": "/backgrounds/Raul-Bautista/full.jpg"
   },
   {
+    "kind": "flat",
     "file": "Real-Dimez.jpg",
     "name": "Real Dimez",
     "url": "/backgrounds/Real-Dimez.jpg"
   },
   {
+    "kind": "flat",
     "file": "Robbery.jpg",
     "name": "Robbery",
     "url": "/backgrounds/Robbery.jpg"

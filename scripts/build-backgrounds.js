@@ -28,7 +28,67 @@ function prettyName(file) {
 }
 
 function scanBackgrounds() {
-  return scanDir(BACKGROUNDS_DIR, IMAGE_EXTS, '/backgrounds');
+  let names = [];
+  try {
+    names = fs.readdirSync(BACKGROUNDS_DIR, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+
+  const entries = [];
+  for (const ent of names) {
+    const fullPath = path.join(BACKGROUNDS_DIR, ent.name);
+    if (ent.isDirectory()) {
+      const px = scanParallaxDir(ent.name, fullPath);
+      if (px) entries.push(px);
+    } else if (
+      IMAGE_EXTS.has(path.extname(ent.name).toLowerCase()) &&
+      ent.name.toLowerCase() !== 'manifest.json'
+    ) {
+      entries.push({
+        kind: 'flat',
+        file: ent.name,
+        name: prettyName(ent.name),
+        url: `/backgrounds/${ent.name}`
+      });
+    }
+  }
+  entries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  return entries;
+}
+
+// A subdirectory holding layer files becomes one parallax entry.
+// Convention (case-insensitive prefix, any image extension):
+//   background.* / foreground.* / full.*
+// Missing layers degrade gracefully (hero falls back full -> background -> foreground).
+function pickLayerFile(dir, prefix) {
+  try {
+    const match = fs
+      .readdirSync(dir)
+      .filter(f => IMAGE_EXTS.has(path.extname(f).toLowerCase()) && f.toLowerCase().startsWith(prefix))
+      .sort((a, b) => a.localeCompare(b));
+    return match[0] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function scanParallaxDir(dirName, dirPath) {
+  const bg = pickLayerFile(dirPath, 'background');
+  const fg = pickLayerFile(dirPath, 'foreground');
+  const full = pickLayerFile(dirPath, 'full');
+  if (!bg && !fg && !full) return null;
+  const hero = full || bg || fg;
+  const urlFor = (f) => (f ? `/backgrounds/${dirName}/${f}` : null);
+  return {
+    kind: 'parallax',
+    dir: dirName,
+    name: prettyName(dirName),
+    background: urlFor(bg),
+    foreground: urlFor(fg),
+    full: urlFor(hero),
+    thumb: urlFor(hero)
+  };
 }
 
 function scanOst() {

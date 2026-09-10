@@ -729,6 +729,33 @@
     showBloom: 'hide-bloom'
   };
 
+  // One-tap looks, from bare digits to the full show. Each preset is a
+  // complete mapping onto the customization settings above.
+  const PRESETS = {
+    'ultra-minimal': {
+      name: 'Ultra Minimal',
+      desc: 'Bare digits on solid black. Nothing else.',
+      settings: { bg: 'none', slideshow: false, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: false, showActions: false, showBloom: false, digitScale: 1.2, emblemScale: 1 }
+    },
+    'minimal': {
+      name: 'Minimal',
+      desc: 'Logo, digits and labels. Calm and clean.',
+      settings: { bg: '01.jpg', slideshow: true, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: true, showActions: false, showBloom: true, digitScale: 1, emblemScale: 1 }
+    },
+    'informative': {
+      name: 'Informative',
+      desc: 'The full experience, tastefully sized.',
+      settings: { bg: '01.jpg', slideshow: true, showEmblem: false, showMeta: true, showPlatforms: false, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
+    },
+    'extra-informative': {
+      name: 'Extra Informative',
+      desc: 'Everything on, digits turned up.',
+      settings: { bg: '01.jpg', slideshow: true, showEmblem: true, showMeta: true, showPlatforms: true, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
+    }
+  };
+  const PRESET_KEYS = ['bg', 'slideshow', 'showEmblem', 'showMeta', 'showPlatforms', 'showLabels', 'showActions', 'showBloom', 'digitScale', 'emblemScale'];
+  const ONBOARD_KEY = 'gtaclock_onboarded';
+
   function loadCustomSettings() {
     try {
       const raw = localStorage.getItem(CUSTOM_KEY);
@@ -747,14 +774,170 @@
     } catch (_) {}
   }
 
-  function bgUrlFor(file) {
-    if (file === 'none') return null;
-    if (!backgroundsLoaded) return `/backgrounds/${file}`; // optimistic, pre-list
-    const found = availableBackgrounds.find(b => b.file === file);
-    return found ? found.url : null;
+  // Background entries are flat images ({kind:'flat', file, url}) or
+  // parallax packs ({kind:'parallax', dir, background, foreground, full}).
+  // Stored selection values: 'none' | filename | 'parallax:<dir>'.
+  function entryId(entry) {
+    if (!entry) return null;
+    return entry.kind === 'parallax' ? 'parallax:' + entry.dir : entry.file;
   }
 
-  // Picking a specific background takes over from the slideshow.
+  function findBgEntry(value) {
+    if (!value || value === 'none') return null;
+    if (value.startsWith('parallax:')) {
+      const dir = value.slice('parallax:'.length);
+      return availableBackgrounds.find(e => e.kind === 'parallax' && e.dir === dir) || null;
+    }
+    return availableBackgrounds.find(e => e.kind !== 'parallax' && e.file === value) || null;
+  }
+
+  // Resolve a background file against the known list, falling back
+  // gracefully when files were renamed or deleted.
+  function sanitizeBgFile(file) {
+    if (file === 'none') return 'none';
+    if (!backgroundsLoaded) return file; // optimistic; loader validates later
+    if (findBgEntry(file)) return file;
+    if (findBgEntry(CUSTOM_DEFAULTS.bg)) return CUSTOM_DEFAULTS.bg;
+    const first = availableBackgrounds[0];
+    return first ? entryId(first) : 'none';
+  }
+
+  // Apply a full preset look.
+  function applyPreset(key, opts = {}) {
+    const preset = PRESETS[key];
+    if (!preset) return;
+    customSettings = { ...CUSTOM_DEFAULTS, ...preset.settings, bg: sanitizeBgFile(preset.settings.bg) };
+    persistCustomSettings();
+    if (customSettings.slideshow) {
+      if (backgroundsLoaded) startSlideshow();
+      // else: loadBackgroundPresets() starts it once the list arrives
+    } else {
+      stopSlideshow();
+    }
+    applyCustomSettings();
+    if (!opts.silent) showStatus(`✓ "${preset.name}" style applied.`, 'success');
+  }
+
+  function presetMatches(key) {
+    const preset = PRESETS[key];
+    if (!preset) return false;
+    return PRESET_KEYS.every(k => customSettings[k] === preset.settings[k]);
+  }
+
+  // Schematic mini preview of the page under a preset's settings.
+  function buildPresetPreview(settings) {
+    const wrap = document.createElement('span');
+    wrap.className = 'preset-preview' + (settings.showBloom ? ' has-bloom' : '');
+
+    if (settings.bg && settings.bg !== 'none') {
+      const bgImg = document.createElement('img');
+      bgImg.className = 'pv-bg';
+      bgImg.src = `/backgrounds/${settings.bg}`;
+      bgImg.alt = '';
+      bgImg.loading = 'lazy';
+      wrap.appendChild(bgImg);
+    }
+
+    if (settings.showEmblem) {
+      const logo = document.createElement('img');
+      logo.className = 'pv-logo';
+      logo.src = '/assets/gta-vi-logo.png';
+      logo.alt = '';
+      wrap.appendChild(logo);
+    }
+
+    const digits = document.createElement('span');
+    digits.className = 'pv-digits';
+    digits.style.fontSize = Math.round(17 * (settings.digitScale || 1)) + 'px';
+    ['214', '07', '33', '10'].forEach((d, i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'pv-sep';
+        sep.textContent = ':';
+        digits.appendChild(sep);
+      }
+      const dd = document.createElement('span');
+      dd.textContent = d;
+      digits.appendChild(dd);
+    });
+    wrap.appendChild(digits);
+
+    if (settings.showLabels) {
+      const labels = document.createElement('span');
+      labels.className = 'pv-labels';
+      ['DAYS', 'HRS', 'MIN', 'SEC'].forEach(t => {
+        const s = document.createElement('span');
+        s.textContent = t;
+        labels.appendChild(s);
+      });
+      wrap.appendChild(labels);
+    }
+
+    if (settings.showMeta) {
+      wrap.appendChild(document.createElement('span')).className = 'pv-meta';
+    }
+
+    if (settings.showPlatforms) {
+      const p = document.createElement('span');
+      p.className = 'pv-platforms';
+      p.appendChild(document.createElement('span'));
+      p.appendChild(document.createElement('span'));
+      wrap.appendChild(p);
+    }
+
+    if (settings.showActions) {
+      const a = document.createElement('span');
+      a.className = 'pv-actions';
+      a.appendChild(document.createElement('span'));
+      a.appendChild(document.createElement('span'));
+      wrap.appendChild(a);
+    }
+
+    return wrap;
+  }
+
+  function renderPresetCards() {
+    const wrap = document.getElementById('presetCards');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    Object.keys(PRESETS).forEach(key => {
+      const preset = PRESETS[key];
+      const card = document.createElement('button');
+      card.className = 'preset-card';
+      card.dataset.preset = key;
+      card.appendChild(buildPresetPreview(preset.settings));
+      const name = document.createElement('span');
+      name.className = 'preset-name';
+      name.textContent = preset.name;
+      const desc = document.createElement('span');
+      desc.className = 'preset-desc';
+      desc.textContent = preset.desc;
+      card.appendChild(name);
+      card.appendChild(desc);
+      card.addEventListener('click', () => {
+        applyPreset(key, { silent: true });
+        hideOnboarding(true);
+        showStatus(`✓ "${preset.name}" style applied.`, 'success');
+      });
+      wrap.appendChild(card);
+    });
+  }
+
+  function hideOnboarding(mark) {
+    const overlay = document.getElementById('onboardOverlay');
+    if (overlay) overlay.classList.add('hidden');
+    if (mark) {
+      try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (_) {}
+    }
+  }
+
+  function maybeShowOnboarding() {
+    let seen = null;
+    try { seen = localStorage.getItem(ONBOARD_KEY); } catch (_) {}
+    if (seen) return;
+    const overlay = document.getElementById('onboardOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+  }
   function disableSlideshowIfOn() {
     if (customSettings.slideshow) {
       customSettings.slideshow = false;
@@ -772,25 +955,27 @@
     wrap.innerHTML = '';
 
     const visible = bgExpanded ? availableBackgrounds : availableBackgrounds.slice(0, BG_COLLAPSED_COUNT);
-    visible.forEach(bg => {
+    visible.forEach(entry => {
+      const id = entryId(entry);
+      const isPx = entry.kind === 'parallax';
       const btn = document.createElement('button');
-      btn.className = 'bg-preset' + (customSettings.bg === bg.file ? ' active' : '');
-      btn.dataset.bg = bg.file;
-      btn.title = bg.name;
+      btn.className = 'bg-preset' + (customSettings.bg === id ? ' active' : '');
+      btn.dataset.bg = id;
+      btn.title = entry.name;
 
       const img = document.createElement('img');
-      img.src = bg.url;
-      img.alt = bg.name + ' background';
+      img.src = isPx ? entry.thumb : entry.url;
+      img.alt = entry.name + ' background';
       img.loading = 'lazy';
 
       const label = document.createElement('span');
-      label.textContent = bg.name;
+      label.textContent = entry.name;
 
       btn.appendChild(img);
       btn.appendChild(label);
       btn.addEventListener('click', () => {
         disableSlideshowIfOn();
-        customSettings.bg = bg.file;
+        customSettings.bg = id;
         persistCustomSettings();
         applyCustomSettings();
       });
@@ -848,10 +1033,9 @@
     availableBackgrounds = list || [];
     backgroundsLoaded = true;
 
-    if (customSettings.bg !== 'none' && !availableBackgrounds.some(b => b.file === customSettings.bg)) {
-      customSettings.bg = availableBackgrounds.some(b => b.file === CUSTOM_DEFAULTS.bg)
-        ? CUSTOM_DEFAULTS.bg
-        : (availableBackgrounds[0] ? availableBackgrounds[0].file : 'none');
+    const clean = sanitizeBgFile(customSettings.bg);
+    if (clean !== customSettings.bg) {
+      customSettings.bg = clean;
       persistCustomSettings();
     }
     applyCustomSettings();
@@ -880,6 +1064,162 @@
     layer.classList.add(KB_VARIANTS[kbIndex++ % KB_VARIANTS.length]);
   }
 
+  // Parallax stage for folder packs: background and foreground layers ease
+  // in ONE direction per showing (drift right / left / push / pull), GTA-
+  // loading-screen style — the front layer always covers ~2.4x the back
+  // layer's travel so depth reads through rate alone, then holds the pose.
+  // The whole stage fades as one unit; everything painted on the flat
+  // crossfade layers beneath it is invisible while it is opaque.
+  // The glide itself is one CSS transition on the compositor (no per-frame
+  // JS), so it stays smooth regardless of main-thread load.
+  const PX_FADE_MS = 1000;
+  // One presentation = one direction, linear start pose -> end pose.
+  // Depth reads through opposition: the foreground goes one way while the
+  // background goes the opposite way slower — zooming (front in 1x while
+  // back out 0.5x and vice versa) as well as panning. Nothing ever reverses
+  // mid-show. Variants rotate per pack presentation.
+  // (drift right / left / push / pull).
+  // Absolute pacing matches the still-image Ken Burns drifts (~6px/s pans,
+  // ~1.2%/s zooms); the foreground only ever wins on the opposition ratio,
+  // never on raw speed.
+  const PX_DRIFT_MS = 8000;
+  const PX_DIRECTIONS = [
+    {
+      back: { x0: 10, y0: 0, s0: 1.03, x1: -10, y1: 0, s1: 1.015 },
+      front: { x0: -24, y0: 0, s0: 1.015, x1: 24, y1: 0, s1: 1.045 }
+    },
+    {
+      back: { x0: -10, y0: 0, s0: 1.03, x1: 10, y1: 0, s1: 1.015 },
+      front: { x0: 24, y0: 0, s0: 1.015, x1: -24, y1: 0, s1: 1.045 }
+    },
+    {
+      back: { x0: 0, y0: -3, s0: 1.045, x1: 0, y1: 3, s1: 1.0 },
+      front: { x0: 0, y0: 6, s0: 1.0, x1: 0, y1: -6, s1: 1.09 }
+    },
+    {
+      back: { x0: 0, y0: 3, s0: 1.0, x1: 0, y1: -3, s1: 1.045 },
+      front: { x0: 0, y0: -6, s0: 1.09, x1: 0, y1: 6, s1: 1.0 }
+    }
+  ];
+  let parallaxStageVisible = false;
+  let pxFadeTimer = null;
+  let pxVariant = 0;
+  let lastPxId = null;
+
+  function pxStage() {
+    return document.getElementById('pxStage');
+  }
+
+  function pxLayers() {
+    return [document.getElementById('pxBack'), document.getElementById('pxFront')];
+  }
+
+  function pxReducedMotion() {
+    try {
+      return typeof window !== 'undefined' &&
+        !!window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function pxPoseStyle(pose) {
+    return `translate3d(${pose.x}px, ${pose.y}px, 0) scale(${pose.s})`;
+  }
+
+  // Drive one full glide on the compositor: snap to the start pose, then a
+  // single 8s ease-out transition to the end pose — fast open, slowly
+  // coming to a halt. No per-frame JS, so the motion stays smooth no matter
+  // how busy the main thread gets — and it parks itself at the end pose
+  // when done (no restart, no reversal).
+  function drivePxMotion() {
+    const d = PX_DIRECTIONS[pxVariant % PX_DIRECTIONS.length];
+    const reduced = pxReducedMotion();
+    const [back, front] = pxLayers();
+    const pairs = [[back, d.back], [front, d.front]];
+    pairs.forEach(([layer, pose]) => {
+      if (!layer) return;
+      layer.style.transition = 'none';
+      layer.style.transform = reduced
+        ? pxPoseStyle({ x: pose.x1, y: pose.y1, s: pose.s1 })
+        : pxPoseStyle({ x: pose.x0, y: pose.y0, s: pose.s0 });
+    });
+    if (reduced) return;
+    const stage = pxStage();
+    if (stage) void stage.offsetWidth; // flush so the transition below animates
+    pairs.forEach(([layer, pose]) => {
+      if (!layer) return;
+      layer.style.transition = `transform ${PX_DRIFT_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+      layer.style.transform = pxPoseStyle({ x: pose.x1, y: pose.y1, s: pose.s1 });
+    });
+  }
+
+  function setPxImages(entry) {
+    const id = entryId(entry);
+    if (id !== lastPxId) {
+      lastPxId = id;
+      pxVariant = (pxVariant + 1) % PX_DIRECTIONS.length;
+    }
+    const [back, front] = pxLayers();
+    if (back && entry.background) back.style.backgroundImage = `url('${entry.background}')`;
+    if (front) {
+      if (entry.foreground) {
+        front.style.backgroundImage = `url('${entry.foreground}')`;
+        front.style.display = '';
+      } else {
+        front.style.backgroundImage = 'none';
+        front.style.display = 'none';
+      }
+    }
+  }
+
+  // Paint entry.full on a flat layer with no drift (used beneath the stage).
+  function prepStandardLayer(layer, url) {
+    if (!layer) return;
+    layer.classList.remove(...KB_VARIANTS);
+    if (url) layer.style.backgroundImage = `url('${url}')`;
+  }
+
+  function setStageOpacity(visible) {
+    const stage = pxStage();
+    parallaxStageVisible = visible;
+    if (stage) stage.classList.toggle('px-on', visible);
+  }
+
+  // Show a parallax pack: stage the start poses, fade the stage in over the
+  // current slide, then drive the glide; sync the flat layer beneath
+  // (invisibly) so later fades stay seamless.
+  function presentParallax(entry) {
+    setPxImages(entry);
+    setStageOpacity(true);
+    drivePxMotion();
+    clearTimeout(pxFadeTimer);
+    pxFadeTimer = setTimeout(() => {
+      const layers = getBackdropLayers();
+      prepStandardLayer(layers[frontLayer], entry.full);
+    }, PX_FADE_MS + 300);
+  }
+
+  // Dip out and back in for parallax -> parallax slide changes: the new
+  // glide starts under cover of the fade-in.
+  function dipParallaxStage(entry) {
+    const layers = getBackdropLayers();
+    if (layers[frontLayer]) prepStandardLayer(layers[frontLayer], entry.full);
+    setStageOpacity(false);
+    clearTimeout(pxFadeTimer);
+    pxFadeTimer = setTimeout(() => {
+      setPxImages(entry);
+      setStageOpacity(true);
+      drivePxMotion();
+    }, PX_FADE_MS);
+  }
+
+  function hideParallaxStage() {
+    clearTimeout(pxFadeTimer);
+    setStageOpacity(false);
+  }
+
   function startSlideshow() {
     stopSlideshow(true);
     if (availableBackgrounds.length === 0) {
@@ -894,30 +1234,76 @@
     if (layers.length < 2) return;
     layers.forEach(l => l.classList.add('crossfading'));
 
-    let startIdx = availableBackgrounds.findIndex(b => b.file === customSettings.bg);
+    let startIdx = availableBackgrounds.findIndex(e => entryId(e) === customSettings.bg);
     if (startIdx < 0) startIdx = 0;
     slideIndex = startIdx;
     frontLayer = 0;
 
-    setLayerImage(layers[0], availableBackgrounds[slideIndex].url);
-    layers[0].classList.add('slide-visible');
-    layers[0].classList.remove('slide-hidden');
-    layers[1].classList.add('slide-hidden');
-    layers[1].classList.remove('slide-visible');
+    displaySlide(availableBackgrounds[slideIndex], true);
 
     if (availableBackgrounds.length > 1) {
       slideshowTimer = setInterval(advanceSlide, SLIDE_HOLD_MS);
     }
   }
 
+  // Paint one slide. Flat slides crossfade on the standard layers with a
+  // Ken Burns drift; parallax slides fade the depth stage as a whole.
+  function displaySlide(entry, isFirst) {
+    const layers = getBackdropLayers();
+    if (entry && entry.kind === 'parallax') {
+      if (!isFirst && parallaxStageVisible) {
+        dipParallaxStage(entry);
+      } else {
+        presentParallax(entry);
+      }
+      return;
+    }
+    hideParallaxStage();
+    if (!entry) return;
+    const back = layers[1 - frontLayer];
+    const front = layers[frontLayer];
+    if (isFirst) {
+      setLayerImage(layers[0], entry.url);
+      layers[0].classList.add('slide-visible');
+      layers[0].classList.remove('slide-hidden');
+      layers[1].classList.add('slide-hidden');
+      layers[1].classList.remove('slide-visible');
+      return;
+    }
+    setLayerImage(back, entry.url);
+    back.classList.add('slide-visible');
+    back.classList.remove('slide-hidden');
+    front.classList.add('slide-hidden');
+    front.classList.remove('slide-visible');
+    frontLayer = 1 - frontLayer;
+  }
+
   function advanceSlide() {
     if (availableBackgrounds.length < 2) return;
     const layers = getBackdropLayers();
     if (layers.length < 2) return;
-    const front = layers[frontLayer];
-    const back = layers[1 - frontLayer];
     slideIndex = (slideIndex + 1) % availableBackgrounds.length;
-    setLayerImage(back, availableBackgrounds[slideIndex].url);
+    const entry = availableBackgrounds[slideIndex];
+    if (entry.kind === 'parallax') {
+      // Swap the flat layer beneath invisibly while the stage is opaque,
+      // so the dip reveals the incoming scene instead of a stale frame.
+      if (parallaxStageVisible) {
+        const back = layers[1 - frontLayer];
+        const front = layers[frontLayer];
+        prepStandardLayer(back, entry.full);
+        back.classList.add('slide-visible');
+        back.classList.remove('slide-hidden');
+        front.classList.add('slide-hidden');
+        front.classList.remove('slide-visible');
+        frontLayer = 1 - frontLayer;
+      }
+      displaySlide(entry, false);
+      return;
+    }
+    hideParallaxStage();
+    const back = layers[1 - frontLayer];
+    const front = layers[frontLayer];
+    setLayerImage(back, entry.url);
     back.classList.add('slide-visible');
     back.classList.remove('slide-hidden');
     front.classList.add('slide-hidden');
@@ -930,7 +1316,9 @@
       clearInterval(slideshowTimer);
       slideshowTimer = null;
     }
+    clearTimeout(pxFadeTimer);
     if (silent) return;
+    hideParallaxStage();
     // Restore the static single-layer state; applyCustomSettings repaints it.
     getBackdropLayers().forEach((layer, i) => {
       layer.classList.remove('crossfading', 'slide-visible', 'slide-hidden', ...KB_VARIANTS);
@@ -939,17 +1327,26 @@
   }
 
   function applyCustomSettings() {
-    // While the slideshow runs it owns the backdrop layers; static bg is
-    // only applied when the slideshow is off.
+    // While the slideshow runs it owns the visuals; static bg is only
+    // applied when the slideshow is off.
     if (!customSettings.slideshow) {
-      const backdropArt = document.querySelector('.backdrop-art');
-      const url = bgUrlFor(customSettings.bg);
-      if (url) {
-        document.body.classList.remove('bg-none');
-        if (backdropArt) backdropArt.style.backgroundImage = `url('${url}')`;
-      } else {
+      const entry = findBgEntry(customSettings.bg);
+      if (customSettings.bg === 'none') {
+        hideParallaxStage();
         document.body.classList.add('bg-none');
+      } else if (entry && entry.kind === 'parallax') {
+        // Static pick: full composite only, no motion (motion lives in slideshow).
+        hideParallaxStage();
+        document.body.classList.remove('bg-none');
+        const layerA = document.querySelector('.backdrop-art');
+        if (layerA) layerA.style.backgroundImage = `url('${entry.full}')`;
+      } else if (entry) {
+        hideParallaxStage();
+        document.body.classList.remove('bg-none');
+        const layerA = document.querySelector('.backdrop-art');
+        if (layerA) layerA.style.backgroundImage = `url('${entry.url}')`;
       }
+      // else: unknown / list not loaded yet — leave first-paint CSS as-is
     } else {
       document.body.classList.remove('bg-none');
     }
@@ -969,6 +1366,9 @@
     if (!customPanel) return;
     customPanel.querySelectorAll('.bg-preset').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.bg === customSettings.bg);
+    });
+    customPanel.querySelectorAll('.preset-strip-btn').forEach(btn => {
+      btn.classList.toggle('active', presetMatches(btn.dataset.preset));
     });
     customPanel.querySelectorAll('input[type="checkbox"][data-setting]').forEach(input => {
       input.checked = !!customSettings[input.dataset.setting];
@@ -1024,6 +1424,9 @@
   }
 
   document.addEventListener('click', (e) => {
+    // If our own re-render (presets grid, track list, …) detached the
+    // clicked element mid-click, it isn't an outside click — ignore it.
+    if (e.target && e.target.isConnected === false) return;
     if (clickIsInsidePanelsOrButtons(e.target)) return;
     closeCustomPanelFn();
     closeMusicPanelFn();
@@ -1033,12 +1436,17 @@
     if (e.key === 'Escape') {
       closeCustomPanelFn();
       closeMusicPanelFn();
+      const overlay = document.getElementById('onboardOverlay');
+      if (overlay && !overlay.classList.contains('hidden')) hideOnboarding(true);
     }
   });
 
   if (customPanel) {
     // NOTE: .bg-preset buttons are rendered dynamically by renderBgPresets()
     // with their own click handlers (the list comes from /api/backgrounds).
+    customPanel.querySelectorAll('.preset-strip-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
     customPanel.querySelectorAll('input[type="checkbox"][data-setting]').forEach(input => {
       input.addEventListener('change', () => {
         customSettings[input.dataset.setting] = input.checked;
@@ -1078,8 +1486,8 @@
 
   // 9. Music / OST player (speaker icon, persisted track + volume)
   // Tracks come from /api/ost (fallback: /ost/manifest.json), so any audio
-  // added to public/ost/ appears automatically. Starts paused — browsers
-  // require a user gesture before audio may play.
+  // added to public/ost/ appears automatically. Plays by default; if the
+  // browser blocks autoplay it starts on the first tap/keypress.
   const soundBtn = document.getElementById('soundBtn');
   const musicPanel = document.getElementById('musicPanel');
   const closeMusicBtn = document.getElementById('closeMusicPanel');
@@ -1205,6 +1613,36 @@
     if (audioEl) audioEl.volume = musicSettings.volume;
   }
 
+  // Autoplay the default track. Browsers block audible autoplay until the
+  // user has interacted with the page, so if the first attempt is rejected
+  // we silently start on the very first tap/keypress instead.
+  function tryAutoplay() {
+    const track = currentTrack();
+    if (!track) return;
+    const audio = ensureAudio();
+    if (audio.dataset.file !== track.file) {
+      audio.src = track.url;
+      audio.dataset.file = track.file;
+      try { audio.load(); } catch (_) {}
+    }
+    if (!audio.paused) return;
+    const p = audio.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => {
+        const resume = () => {
+          document.removeEventListener('pointerdown', resume);
+          document.removeEventListener('keydown', resume);
+          try {
+            const q = ensureAudio().play();
+            if (q && typeof q.catch === 'function') q.catch(() => {});
+          } catch (_) {}
+        };
+        document.addEventListener('pointerdown', resume);
+        document.addEventListener('keydown', resume);
+      });
+    }
+  }
+
   async function loadTracks() {
     let list = null;
     try {
@@ -1230,6 +1668,7 @@
     ensureAudio().volume = musicSettings.volume;
     syncVolumeUI();
     applyTrack(false);
+    tryAutoplay();
   }
 
   function openMusicPanel() {
@@ -1291,6 +1730,13 @@
   applyCustomSettings();
   loadBackgroundPresets();
   loadTracks();
+  renderPresetCards();
+
+  const onboardSkip = document.getElementById('onboardSkip');
+  if (onboardSkip) {
+    onboardSkip.addEventListener('click', () => hideOnboarding(true));
+  }
+  maybeShowOnboarding();
 
   const savedTz = localStorage.getItem('gtaclock_tz') || 'auto';
   setTimezone(savedTz);

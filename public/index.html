@@ -53,6 +53,15 @@
       <button class="custom-close" id="closeCustomPanel" aria-label="Close customization panel">&times;</button>
     </div>
 
+    <p class="custom-section-title">Preset</p>
+    <div class="preset-strip" id="presetStrip">
+      <button class="preset-strip-btn" data-preset="ultra-minimal" title="Ultra Minimal">Ultra Minimal</button>
+      <button class="preset-strip-btn" data-preset="minimal" title="Minimal">Minimal</button>
+      <button class="preset-strip-btn" data-preset="informative" title="Balanced">Informative</button>
+      <button class="preset-strip-btn" data-preset="extra-informative" title="Extra Informative">Extra Informative</button>
+
+    </div>
+
     <p class="custom-section-title">Background</p>
     <!-- Presets are rendered dynamically from /api/backgrounds
          (any image added to public/backgrounds/ appears here automatically) -->
@@ -125,6 +134,11 @@
     <div class="backdrop-art"></div>
     <!-- Second crossfade layer for the artwork slideshow -->
     <div class="backdrop-art slide-hidden"></div>
+    <!-- Parallax stage for folder packs (background + foreground layers) -->
+    <div class="parallax-stage" id="pxStage">
+      <div class="px-layer px-back" id="pxBack"></div>
+      <div class="px-layer px-front" id="pxFront"></div>
+    </div>
     <div class="backdrop-vignette"></div>
     <div class="backdrop-bloom"></div>
   </div>
@@ -294,6 +308,17 @@
       <div class="tz-list" id="tzList">
         <!-- Dynamically rendered timezone items -->
       </div>
+    </div>
+  </div>
+
+  <!-- First-Visit Preset Picker -->
+  <div class="onboard-overlay hidden" id="onboardOverlay" role="dialog" aria-label="Choose your countdown style">
+    <div class="onboard-box">
+      <h2>Choose your countdown style</h2>
+      <p class="onboard-sub">From bare digits to the full show — pick a look. You can fine-tune everything later from the sliders panel.</p>
+      <!-- Cards rendered dynamically from PRESETS in app.js -->
+      <div class="preset-cards" id="presetCards"></div>
+      <button class="onboard-skip" id="onboardSkip">Skip for now</button>
     </div>
   </div>
 
