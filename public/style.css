@@ -1,0 +1,808 @@
+/* GTA CLOCK - MINIMALIST BESPOKE AESTHETIC */
+
+:root {
+  --bg-core: #09050e;
+  --sunset-pink: #ff2a8d;
+  --sunset-orange: #ff8e3c;
+  --sunset-violet: #8e2de2;
+
+  --ps-blue: #0070d1;
+  --xbox-green: #107c10;
+
+  --text-pure: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.75);
+  --text-dim: rgba(255, 255, 255, 0.5);
+
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  background-color: var(--bg-core);
+  color: var(--text-pure);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Background Layers - Brightened & Vibrant */
+.backdrop-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.backdrop-art {
+  position: absolute;
+  inset: -15px;
+  background-image: url('/assets/gta-vi-gas-station.jpg');
+  background-size: cover;
+  background-position: center 30%;
+  filter: brightness(0.72) contrast(1.06) saturate(1.18);
+  transform: scale(1.02);
+  animation: subtleBreathe 20s ease-in-out infinite alternate;
+}
+
+@keyframes subtleBreathe {
+  0% {
+    transform: scale(1.02);
+  }
+
+  100% {
+    transform: scale(1.05) translateY(-4px);
+  }
+}
+
+.backdrop-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(12, 6, 20, 0.15) 0%, rgba(10, 5, 16, 0.45) 55%, rgba(8, 4, 12, 0.78) 85%, #08040c 100%),
+    linear-gradient(to bottom, rgba(8, 4, 12, 0.35) 0%, transparent 20%, rgba(8, 4, 12, 0.55) 75%, #08040c 100%);
+}
+
+.backdrop-bloom {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(255, 42, 141, 0.18) 0%, rgba(255, 142, 60, 0.08) 50%, transparent 70%);
+  filter: blur(80px);
+}
+
+/* Hero Center Stage */
+.hero-stage {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.hero-content {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Emblem */
+.hero-logo-wrap {
+  margin-bottom: 24px;
+  user-select: none;
+}
+
+.gta-emblem {
+  height: 88px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 30px rgba(255, 42, 141, 0.45)) drop-shadow(0 0 16px rgba(255, 142, 60, 0.3));
+  transition: transform 0.3s ease;
+}
+
+.gta-emblem:hover {
+  transform: scale(1.02);
+}
+
+/* Clock Display */
+.clock-display {
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.digits-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 18px;
+}
+
+.digit-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Unit Digits Container */
+.unit-digits {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Single Character Slot (Independent Per-Digit Sliding) */
+.char-slot {
+  position: relative;
+  height: 94px;
+  width: 54px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.char-val {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 92px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: #ffffff;
+  /* Crisp, refined drop shadow that does not bleed or muddy adjacent elements */
+  text-shadow: 0 3px 8px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.85);
+  font-variant-numeric: tabular-nums;
+  will-change: transform, opacity;
+  transition: transform 0.68s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+}
+
+.char-val.current {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.char-val.slide-out {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.char-val.slide-in-start {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+/* Colon Separator - Centered with dedicated breathing space */
+.sep {
+  height: 94px;
+  width: 20px;
+  margin: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.35);
+  user-select: none;
+  /* Clean shadow without hazy blur overlap */
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  animation: sepPulse 1.2s ease-in-out infinite;
+  transform: translateY(-3px);
+}
+
+@keyframes sepPulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3.5px;
+  color: var(--text-muted);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+  margin-top: 8px;
+}
+
+.clock-meta {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+  flex-wrap: wrap;
+}
+
+.meta-date {
+  color: #ffffff;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.meta-dot {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.meta-tz-btn {
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #ff9ed2;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  text-shadow: inherit;
+}
+
+.meta-tz-btn:hover {
+  background: rgba(255, 158, 210, 0.12);
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255, 42, 141, 0.6);
+}
+
+.tz-chevron {
+  opacity: 0.7;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.meta-tz-btn:hover .tz-chevron {
+  opacity: 1;
+  transform: translateY(1px);
+}
+
+.meta-tz {
+  color: #ff9ed2;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Platforms Pre-Order Hub */
+.platforms-hub {
+  width: 100%;
+  max-width: 580px;
+  margin-bottom: 28px;
+}
+
+.platforms-dock {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.platform-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 22px;
+  background: linear-gradient(145deg, rgba(24, 13, 36, 0.75) 0%, rgba(14, 8, 22, 0.88) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  text-decoration: none;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s ease;
+}
+
+.platform-brand {
+  display: flex;
+  align-items: center;
+}
+
+.brand-logo {
+  height: 23px;
+  width: auto;
+  max-width: 130px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.95;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.platform-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-pure);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 11px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.platform-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+.ps5-card:hover {
+  border-color: rgba(0, 112, 209, 0.6);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 0 24px rgba(0, 112, 209, 0.35);
+}
+
+.ps5-card:hover .platform-action {
+  background: rgba(0, 112, 209, 0.35);
+  border-color: rgba(0, 112, 209, 0.6);
+}
+
+.xbox-card:hover {
+  border-color: rgba(16, 124, 16, 0.6);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 0 24px rgba(16, 124, 16, 0.35);
+}
+
+.xbox-card:hover .platform-action {
+  background: rgba(16, 124, 16, 0.35);
+  border-color: rgba(16, 124, 16, 0.6);
+}
+
+/* Action Hub: Calendar & Browser Alert Pills */
+.action-hub {
+  width: 100%;
+  max-width: 480px;
+}
+
+.action-pills {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 22px;
+  background: rgba(18, 10, 28, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  color: var(--text-pure);
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.action-pill svg {
+  color: rgba(255, 255, 255, 0.7);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.action-pill:hover {
+  background: rgba(28, 14, 42, 0.9);
+  border-color: rgba(255, 42, 141, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 42, 141, 0.25);
+}
+
+.action-pill:hover svg {
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.cal-pill:hover {
+  border-color: rgba(255, 142, 60, 0.55);
+  box-shadow: 0 8px 24px rgba(255, 142, 60, 0.25);
+}
+
+.notify-pill.enabled {
+  background: rgba(46, 213, 115, 0.16);
+  border-color: rgba(46, 213, 115, 0.5);
+  color: #2ed573;
+}
+
+.notify-pill.enabled svg {
+  color: #2ed573;
+}
+
+.action-feedback {
+  min-height: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.action-feedback.success {
+  color: #2ed573;
+}
+
+.action-feedback.error {
+  color: #ff4757;
+}
+
+/* Calendar Modal */
+.cal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.cal-modal-box {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(160deg, #180d26 0%, #0d0616 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75), 0 0 30px rgba(255, 42, 141, 0.2);
+}
+
+.cal-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.cal-modal-head h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.cal-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.cal-modal-close:hover {
+  color: #ffffff;
+}
+
+.cal-modal-info {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.cal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cal-link-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #ffffff;
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cal-link-btn:hover {
+  background: rgba(255, 42, 141, 0.2);
+  border-color: rgba(255, 42, 141, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Timezone Selector Modal */
+.tz-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.tz-modal-box {
+  width: 100%;
+  max-width: 460px;
+  background: linear-gradient(160deg, #1a0e28 0%, #0c0616 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 42, 141, 0.2);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tz-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tz-modal-head h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.tz-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tz-modal-close:hover {
+  color: #ffffff;
+}
+
+.tz-modal-info {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-bottom: 14px;
+}
+
+.tz-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tz-search-icon {
+  position: absolute;
+  left: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+.tz-search-wrap input {
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: #ffffff;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tz-search-wrap input:focus {
+  border-color: var(--sunset-pink);
+  box-shadow: 0 0 14px rgba(255, 42, 141, 0.35);
+}
+
+.tz-quick-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.tz-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 5px 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tz-chip:hover,
+.tz-chip.active {
+  background: rgba(255, 42, 141, 0.22);
+  border-color: rgba(255, 42, 141, 0.55);
+  color: #ffffff;
+}
+
+.tz-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+}
+
+.tz-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tz-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.tz-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.tz-item:hover,
+.tz-item.active {
+  background: rgba(255, 42, 141, 0.16);
+  border-color: rgba(255, 42, 141, 0.4);
+}
+
+.tz-item-name {
+  font-weight: 500;
+}
+
+.tz-item-offset {
+  color: #ff9ed2;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero-stage {
+    padding: 40px 14px;
+  }
+
+  .gta-emblem {
+    height: 68px;
+  }
+
+  .digits-row {
+    gap: 8px;
+  }
+
+  .char-slot {
+    height: 56px;
+    width: 30px;
+  }
+
+  .char-val {
+    font-size: 54px;
+  }
+
+  .sep {
+    height: 56px;
+    width: 14px;
+    margin: 0 3px;
+    font-size: 28px;
+    transform: translateY(-2px);
+  }
+
+  .label {
+    font-size: 9.5px;
+    letter-spacing: 2px;
+  }
+
+  .platforms-dock {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .action-pills {
+    flex-direction: column;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .action-pill {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .digits-row {
+    gap: 4px;
+  }
+
+  .char-slot {
+    height: 46px;
+    width: 25px;
+  }
+
+  .char-val {
+    font-size: 44px;
+  }
+
+  .sep {
+    height: 46px;
+    width: 10px;
+    margin: 0 1px;
+    font-size: 22px;
+    transform: translateY(-2px);
+  }
+}
