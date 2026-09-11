@@ -1,24 +1,26 @@
 [
   {
-    "kind": "flat",
-    "file": "01.jpg",
+    "kind": "parallax",
+    "dir": "01",
     "name": "01",
-    "url": "/backgrounds/01.jpg",
-    "thumb": "/backgrounds/.optimized/01.thumb.jpg"
+    "background": "/backgrounds/01/background.png",
+    "foreground": "/backgrounds/01/foreground.png",
+    "full": "/backgrounds/01/full.jpg",
+    "thumb": "/backgrounds/01/full.jpg"
   },
   {
     "kind": "flat",
     "file": "02.jpg",
     "name": "02",
     "url": "/backgrounds/02.jpg",
-    "thumb": "/backgrounds/.optimized/02.thumb.jpg"
+    "thumb": "/backgrounds/optimized/02.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Beach.jpg",
     "name": "Beach",
     "url": "/backgrounds/Beach.jpg",
-    "thumb": "/backgrounds/.optimized/Beach.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Beach.thumb.jpg"
   },
   {
     "kind": "parallax",
@@ -34,28 +36,28 @@
     "file": "Brian-Heder.jpg",
     "name": "Brian Heder",
     "url": "/backgrounds/Brian-Heder.jpg",
-    "thumb": "/backgrounds/.optimized/Brian-Heder.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Brian-Heder.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Cal-Hampton.jpg",
     "name": "Cal Hampton",
     "url": "/backgrounds/Cal-Hampton.jpg",
-    "thumb": "/backgrounds/.optimized/Cal-Hampton.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Cal-Hampton.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "DreQuan-Priest.jpg",
     "name": "DreQuan Priest",
     "url": "/backgrounds/DreQuan-Priest.jpg",
-    "thumb": "/backgrounds/.optimized/DreQuan-Priest.thumb.jpg"
+    "thumb": "/backgrounds/optimized/DreQuan-Priest.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Motel.jpg",
     "name": "Motel",
     "url": "/backgrounds/Motel.jpg",
-    "thumb": "/backgrounds/.optimized/Motel.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Motel.thumb.jpg"
   },
   {
     "kind": "parallax",
@@ -71,13 +73,13 @@
     "file": "Real-Dimez.jpg",
     "name": "Real Dimez",
     "url": "/backgrounds/Real-Dimez.jpg",
-    "thumb": "/backgrounds/.optimized/Real-Dimez.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Real-Dimez.thumb.jpg"
   },
   {
     "kind": "flat",
     "file": "Robbery.jpg",
     "name": "Robbery",
     "url": "/backgrounds/Robbery.jpg",
-    "thumb": "/backgrounds/.optimized/Robbery.thumb.jpg"
+    "thumb": "/backgrounds/optimized/Robbery.thumb.jpg"
   }
 ]

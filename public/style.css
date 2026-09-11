@@ -58,7 +58,7 @@ body {
 .backdrop-art {
   position: absolute;
   inset: -15px;
-  background-image: url('/backgrounds/01.jpg');
+  background-image: url('/backgrounds/01/full.jpg');
   background-size: cover;
   background-position: center 30%;
   filter: brightness(0.72) contrast(1.06) saturate(1.18);
@@ -265,6 +265,72 @@ body {
   margin-top: 8px;
 }
 
+/* ---------- Secondary (pre-load) countdown block ---------- */
+.clock-secondary {
+  margin-top: -10px;
+  margin-bottom: 24px;
+  padding: 16px 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+}
+
+.secondary-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #ff9ed2;
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+.digits-compact {
+  gap: 10px;
+}
+
+.digits-compact .char-slot {
+  height: calc(52px * var(--digit-scale, 1));
+  width: calc(30px * var(--digit-scale, 1));
+}
+
+.digits-compact .char-val {
+  font-size: calc(50px * var(--digit-scale, 1));
+}
+
+.digits-compact .sep {
+  height: calc(52px * var(--digit-scale, 1));
+  width: calc(12px * var(--digit-scale, 1));
+  font-size: calc(26px * var(--digit-scale, 1));
+}
+
+.digits-compact .label {
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  margin-top: 6px;
+}
+
+/* Passed-event celebration line under the main digits */
+.event-note {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #2ed573;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+  margin: 2px 0 12px;
+}
+
+/* ---------- Countdown target strip (3-way, reuses preset-strip-btn) ---------- */
+.target-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
 .clock-meta {
   margin-top: 16px;
   display: inline-flex;
@@ -463,16 +529,6 @@ body {
   box-shadow: 0 8px 24px rgba(255, 142, 60, 0.25);
 }
 
-.notify-pill.enabled {
-  background: rgba(46, 213, 115, 0.16);
-  border-color: rgba(46, 213, 115, 0.5);
-  color: #2ed573;
-}
-
-.notify-pill.enabled svg {
-  color: #2ed573;
-}
-
 .action-feedback {
   min-height: 20px;
   margin-top: 10px;
@@ -543,6 +599,13 @@ body {
   color: var(--text-muted);
   line-height: 1.5;
   margin-bottom: 20px;
+}
+
+.cal-event-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
 .cal-options {
@@ -861,6 +924,65 @@ body {
   color: #ff9ed2;
 }
 
+/* ---------- Infused speaker volume pill ---------- */
+/* The wrap holds the 40px circle's place in the topbar so the sliders icon
+   never shifts; the pill expands leftward behind the button on hover. */
+.sound-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.sound-wrap .icon-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.sound-slider-pill {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 40px;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 46px 0 16px; /* reserve the right end for the icon */
+  background: rgba(18, 10, 28, 0.92);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.37, 0, 0.63, 1), opacity 0.15s ease, border-color 0.2s ease;
+}
+
+.sound-wrap.expanded .sound-slider-pill {
+  width: 178px;
+  opacity: 1;
+  pointer-events: auto;
+  border-color: rgba(255, 42, 141, 0.35);
+}
+
+/* Melt the button into the pill while expanded — one continuous unit. */
+.sound-wrap.expanded .icon-btn,
+.sound-wrap.expanded .icon-btn:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.sound-slider-pill input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  /* Mirrored: mute (0) at the very right, full volume (100) at the left. */
+  direction: rtl;
+  accent-color: #ff2a8d;
+  cursor: pointer;
+}
+
 /* ---------- Customization Panel (dropdown below the topbar) ---------- */
 .custom-panel {
   position: fixed;
@@ -1172,20 +1294,22 @@ body.hide-bloom .backdrop-bloom {
   to { transform: scale(1.12) translate(1.5%, -0.5%); }
 }
 
+/* Gentle ease-in-out (kept in sync with PX_EASE in app.js): steady cruise
+   through the hold, soft landing at the slide change — GTA V style. */
 .backdrop-art.kb-zoom-in {
-  animation: kb-zoom-in 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-zoom-in 12s cubic-bezier(0.37, 0, 0.63, 1) forwards;
 }
 
 .backdrop-art.kb-zoom-out {
-  animation: kb-zoom-out 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-zoom-out 12s cubic-bezier(0.37, 0, 0.63, 1) forwards;
 }
 
 .backdrop-art.kb-pan-left {
-  animation: kb-pan-left 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-pan-left 12s cubic-bezier(0.37, 0, 0.63, 1) forwards;
 }
 
 .backdrop-art.kb-pan-right {
-  animation: kb-pan-right 12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: kb-pan-right 12s cubic-bezier(0.37, 0, 0.63, 1) forwards;
 }
 
 .slideshow-row {
@@ -1274,6 +1398,66 @@ body.hide-bloom .backdrop-bloom {
 .play-btn:hover {
   background: rgba(255, 42, 141, 0.45);
   transform: scale(1.05);
+}
+
+/* ---------- Play progress ring (display-only, surrounds play button) ---------- */
+.play-ring-wrap {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.play-ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 3;
+}
+
+.play-ring-fg {
+  fill: none;
+  stroke: #ff2a8d;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+/* ---------- Loop mode button ---------- */
+.loop-btn {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.loop-btn:hover {
+  border-color: rgba(255, 42, 141, 0.55);
+  color: #ffffff;
+}
+
+.loop-btn.active {
+  border-color: rgba(255, 42, 141, 0.7);
+  color: #ff9ed2;
+  background: rgba(255, 42, 141, 0.16);
 }
 
 .track-meta {

@@ -9,7 +9,7 @@
   <meta property="og:title" content="GTA Clock — GTA 6 Release Countdown" />
   <meta property="og:description" content="Counting down to November 19, 2026 at 00:00 local time. Pre-order and add to your calendar." />
   <meta property="og:url" content="https://gtaclock.com" />
-  <meta property="og:image" content="/backgrounds/01.jpg" />
+  <meta property="og:image" content="/backgrounds/01/full.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="theme-color" content="#0d0716" />
 
@@ -19,7 +19,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet" />
 
   <!-- LCP fast path: hero backdrop + emblem preload so first paint isn't blocked on CSS discovery -->
-  <link rel="preload" as="image" href="/backgrounds/01.jpg" fetchpriority="high" />
+  <link rel="preload" as="image" href="/backgrounds/01/full.jpg" fetchpriority="high" />
   <link rel="preload" as="image" href="/assets/gta-vi-logo.png" fetchpriority="high" />
 
   <link rel="stylesheet" href="/style.css" />
@@ -29,12 +29,27 @@
 
   <!-- Top-Right Utility Bar -->
   <div class="topbar">
-    <button class="icon-btn" id="soundBtn" title="Music" aria-label="Music" aria-haspopup="dialog">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-      </svg>
-    </button>
+    <div class="sound-wrap" id="soundWrap">
+      <div class="sound-slider-pill" id="soundPill">
+        <input type="range" id="soundSlider" min="0" max="100" step="1" aria-label="Volume" />
+      </div>
+      <button class="icon-btn" id="soundBtn" title="Music" aria-label="Music" aria-haspopup="dialog">
+        <svg id="iconVolHigh" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="iconVolLow" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <svg id="iconVolMute" class="hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+    </div>
     <button class="icon-btn" id="customBtn" title="Customize appearance" aria-label="Customize appearance" aria-haspopup="dialog">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="4" y1="21" x2="4" y2="14"></line>
@@ -74,6 +89,14 @@
     <label class="toggle-row slideshow-row"><span>Artwork slideshow</span><input type="checkbox" data-setting="slideshow" /><span class="toggle-track"></span></label>
     <p class="custom-hint">Slow zoom &amp; pan crossfade, like the GTA loading screens.</p>
 
+    <p class="custom-section-title">Countdown target</p>
+    <div class="target-strip" id="targetStrip">
+      <button class="preset-strip-btn" data-target="release" title="Count down to release day">Release</button>
+      <button class="preset-strip-btn" data-target="preload" title="Count down to pre-load day">Pre-load</button>
+      <button class="preset-strip-btn" data-target="both" title="Show both countdowns">Both</button>
+    </div>
+    <p class="custom-hint">Release: Nov 19, 2026 · Pre-load: Nov 12, 2026, both at 00:00 local.</p>
+
     <p class="custom-section-title">Elements</p>
     <div class="toggle-list">
       <label class="toggle-row"><span>Logo</span><input type="checkbox" data-setting="showEmblem" /><span class="toggle-track"></span></label>
@@ -107,19 +130,40 @@
     </div>
 
     <div class="now-playing">
-      <button class="play-btn" id="playPauseBtn" aria-label="Play or pause">
-        <svg id="iconPlay" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="6 3 20 12 6 21 6 3"></polygon>
+      <div class="play-ring-wrap">
+        <svg class="play-ring" width="46" height="46" viewBox="0 0 46 46" aria-hidden="true" focusable="false">
+          <circle class="play-ring-bg" cx="23" cy="23" r="19"></circle>
+          <circle class="play-ring-fg" id="playRingFg" cx="23" cy="23" r="19"></circle>
         </svg>
-        <svg id="iconPause" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <rect x="5" y="4" width="4.5" height="16" rx="1"></rect>
-          <rect x="14.5" y="4" width="4.5" height="16" rx="1"></rect>
-        </svg>
-      </button>
+        <button class="play-btn" id="playPauseBtn" aria-label="Play or pause">
+          <svg id="iconPlay" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6 3 20 12 6 21 6 3"></polygon>
+          </svg>
+          <svg id="iconPause" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="5" y="4" width="4.5" height="16" rx="1"></rect>
+            <rect x="14.5" y="4" width="4.5" height="16" rx="1"></rect>
+          </svg>
+        </button>
+      </div>
       <div class="track-meta">
         <span class="track-label">Now Playing</span>
         <span class="track-name" id="trackName">—</span>
       </div>
+      <button class="loop-btn" id="loopBtn" title="Loop this track" aria-label="Loop mode">
+        <svg id="iconLoopSingle" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"></polyline>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+          <polyline points="7 23 3 19 7 15"></polyline>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          <text x="12" y="16.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none">1</text>
+        </svg>
+        <svg id="iconLoopQueue" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"></polyline>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+          <polyline points="7 23 3 19 7 15"></polyline>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+        </svg>
+      </button>
     </div>
 
     <p class="custom-section-title">Tracks</p>
@@ -180,8 +224,10 @@
           </div>
         </div>
 
+        <p class="event-note hidden" id="eventNote"></p>
+
         <div class="clock-meta">
-          <span class="meta-date">Thursday, November 19, 2026</span>
+          <span class="meta-date" id="metaDate">Thursday, November 19, 2026</span>
           <span class="meta-dot">•</span>
           <button class="meta-tz-btn" id="tzBtn" title="Click to change timezone" aria-label="Change timezone" aria-haspopup="dialog">
             <span id="tzLabel">Detecting timezone...</span>
@@ -189,6 +235,32 @@
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </button>
+        </div>
+      </section>
+
+      <!-- Secondary pre-load countdown (shown when target = Both) -->
+      <section class="clock-display clock-secondary hidden" id="clockSecondary" aria-label="Countdown to pre-load">
+        <p class="secondary-title" id="secondaryTitle">Pre-load opens in</p>
+        <div class="digits-row digits-compact">
+          <div class="digit-cell">
+            <div class="unit-digits" id="unit-pre-days"></div>
+            <span class="label">DAYS</span>
+          </div>
+          <span class="sep">:</span>
+          <div class="digit-cell">
+            <div class="unit-digits" id="unit-pre-hours"></div>
+            <span class="label">HOURS</span>
+          </div>
+          <span class="sep">:</span>
+          <div class="digit-cell">
+            <div class="unit-digits" id="unit-pre-minutes"></div>
+            <span class="label">MINUTES</span>
+          </div>
+          <span class="sep">:</span>
+          <div class="digit-cell">
+            <div class="unit-digits" id="unit-pre-seconds"></div>
+            <span class="label">SECONDS</span>
+          </div>
         </div>
       </section>
 
@@ -225,10 +297,10 @@
         </div>
       </section>
 
-      <!-- Action Capsule: Add to Calendar & Browser Alerts -->
+      <!-- Action Capsule: Add to Calendar -->
       <section class="action-hub" aria-label="Reminders and Calendar">
         <div class="action-pills">
-          
+
           <!-- Add to Calendar Pill -->
           <button class="action-pill cal-pill" id="calPillBtn" title="Add GTA 6 Launch to your Calendar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -238,15 +310,6 @@
               <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
             <span>Add to Calendar</span>
-          </button>
-
-          <!-- Browser Notification Pill -->
-          <button class="action-pill notify-pill" id="browserAlertBtn" title="Get browser notifications on launch day">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            <span id="browserPillText">Browser Alert</span>
           </button>
 
         </div>
@@ -264,7 +327,11 @@
         <h3>Add to Calendar</h3>
         <button class="cal-modal-close" id="closeCalModal" aria-label="Close modal">&times;</button>
       </div>
-      <p class="cal-modal-info">Never miss the launch on November 19, 2026 at 00:00 local time. Choose your calendar:</p>
+      <p class="cal-modal-info" id="calModalInfo">Never miss the launch on November 19, 2026 at 00:00 local time. Choose your calendar:</p>
+      <div class="cal-event-toggle" id="calEventToggle">
+        <button class="preset-strip-btn active" data-cal-event="release" title="Release day event">Release · Nov 19</button>
+        <button class="preset-strip-btn" data-cal-event="preload" title="Pre-load day event">Pre-load · Nov 12</button>
+      </div>
       <div class="cal-options">
         <a href="#" id="gCalLink" target="_blank" rel="noopener noreferrer" class="cal-link-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -291,7 +358,7 @@
         <h3>Change Timezone</h3>
         <button class="tz-modal-close" id="closeTzModal" aria-label="Close modal">&times;</button>
       </div>
-      <p class="tz-modal-info">Countdown will target midnight (00:00) on November 19, 2026 in your chosen timezone.</p>
+      <p class="tz-modal-info">Countdowns target midnight (00:00): pre-load on November 12, 2026 and release on November 19, 2026 in your chosen timezone.</p>
 
       <div class="tz-search-wrap">
         <svg class="tz-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

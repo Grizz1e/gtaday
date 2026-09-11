@@ -6,7 +6,17 @@
 
   // State
   let currentTimeZone = null;
-  let targetUtcTimestamp = 0;
+  let targetUtcTimestamp = 0; // active single-event target (release default; legacy alias)
+  let targetUtcRelease = 0;
+  let targetUtcPreload = 0;
+
+  // Countdown events — both fire at 00:00 local time in the viewer's timezone.
+  const RELEASE_DAY = 19;
+  const PRELOAD_DAY = 12;
+  const EVENT_META = {
+    release: { day: 19, outTitle: 'GTA VI is OUT! — GTA Clock' },
+    preload: { day: 12, outTitle: 'GTA VI pre-load is LIVE! — GTA Clock' }
+  };
 
   // DOM Elements
   const tzBtn = document.getElementById('tzBtn');
@@ -24,9 +34,7 @@
   const gCalLink = document.getElementById('gCalLink');
   const icsBtn = document.getElementById('icsBtn');
 
-  // Browser Alerts
-  const browserAlertBtn = document.getElementById('browserAlertBtn');
-  const browserPillText = document.getElementById('browserPillText');
+  // Action feedback line (calendar / timezone / preset confirmations)
   const statusMsg = document.getElementById('statusMsg');
 
   // Comprehensive list of popular / canonical timezones + aliases
@@ -128,10 +136,11 @@
     }
   }
 
-  // 1. Calculate UTC Target Timestamp for November 19, 2026 at 00:00:00 in target timeZone
-  function calculateTargetUtc(timeZone) {
+  // 1. Calculate UTC Target Timestamp for November `day`, 2026 at 00:00:00 in target timeZone
+  function calculateTargetUtc(timeZone, day) {
+    const dayNum = day === PRELOAD_DAY ? PRELOAD_DAY : RELEASE_DAY;
     try {
-      const desiredUtc = Date.UTC(2026, 10, 19, 0, 0, 0);
+      const desiredUtc = Date.UTC(2026, 10, dayNum, 0, 0, 0);
       const fmt = new Intl.DateTimeFormat('en-CA', {
         timeZone: timeZone,
         year: 'numeric',
@@ -152,7 +161,7 @@
       const diff = localAsUtc - desiredUtc;
       return desiredUtc - diff;
     } catch (e) {
-      return Date.UTC(2026, 10, 19, 0, 0, 0);
+      return Date.UTC(2026, 10, dayNum, 0, 0, 0);
     }
   }
 
@@ -173,7 +182,9 @@
     }
 
     currentTimeZone = resolvedTz;
-    targetUtcTimestamp = calculateTargetUtc(resolvedTz);
+    targetUtcRelease = calculateTargetUtc(resolvedTz, RELEASE_DAY);
+    targetUtcPreload = calculateTargetUtc(resolvedTz, PRELOAD_DAY);
+    targetUtcTimestamp = targetUtcRelease;
 
     const offsetStr = getFastTzOffset(resolvedTz);
     if (tzLabel) {
@@ -185,9 +196,6 @@
 
     // Update highlight states
     highlightActiveTz(resolvedTz);
-
-    // If already subscribed for push, move the notification to the new timezone
-    syncSubscriptionTimezone(resolvedTz);
   }
 
   function highlightActiveTz(activeTz) {
@@ -281,45 +289,122 @@
     });
   }
 
-  // 4. Countdown Ticking Engine
+  // Active countdown target: 'release' | 'preload' | 'both' (release default).
+  function countdownMode() {
+    const m = customSettings.countdownTarget;
+    return (m === 'preload' || m === 'both') ? m : 'release';
+  }
+
+  // Split a millisecond diff into display strings; null when passed.
+  function breakdownDiff(diff) {
+    if (diff <= 0) return null;
+    const totalSeconds = Math.floor(diff / 1000);
+    return {
+      days: String(Math.floor(totalSeconds / 86400)),
+      hours: String(Math.floor((totalSeconds % 86400) / 3600)).padStart(2, '0'),
+      minutes: String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0'),
+      seconds: String(totalSeconds % 60).padStart(2, '0')
+    };
+  }
+
+  function titleFor(parts, eventKey) {
+    return parts
+      ? `${parts.days}d ${parts.hours}h ${parts.minutes}m ${parts.seconds}s — GTA Clock`
+      : EVENT_META[eventKey].outTitle;
+  }
+
+  function paintZeros(prefix) {
+    updateUnitDigits(prefix + '-days', '00');
+    updateUnitDigits(prefix + '-hours', '00');
+    updateUnitDigits(prefix + '-minutes', '00');
+    updateUnitDigits(prefix + '-seconds', '00');
+  }
+
+  // Paint one event into a digit block; owns its celebration note.
+  // prefix 'unit' = main block (+ event note line), 'unit-pre' = secondary.
+  function paintEventInto(prefix, parts, eventKey) {
+    if (parts) {
+      updateUnitDigits(prefix + '-days', parts.days);
+      updateUnitDigits(prefix + '-hours', parts.hours);
+      updateUnitDigits(prefix + '-minutes', parts.minutes);
+      updateUnitDigits(prefix + '-seconds', parts.seconds);
+    } else {
+      paintZeros(prefix);
+    }
+    if (prefix === 'unit') {
+      const note = document.getElementById('eventNote');
+      if (note) {
+        if (!parts) {
+          note.textContent = eventKey === 'preload'
+            ? '🎮 GTA VI is available for pre-load now!'
+            : '🎮 GTA VI is OUT now!';
+          note.classList.remove('hidden');
+        } else {
+          note.classList.add('hidden');
+        }
+      }
+    } else {
+      const t = document.getElementById('secondaryTitle');
+      if (t) t.textContent = parts ? 'Pre-load opens in' : 'Pre-load available now!';
+    }
+  }
+
+  function formatEventDate(day, opts) {
+    try {
+      const d = new Date(calculateTargetUtc(currentTimeZone || 'UTC', day));
+      return new Intl.DateTimeFormat('en-US', { timeZone: currentTimeZone || 'UTC', ...opts }).format(d);
+    } catch (_) {
+      return day === PRELOAD_DAY ? 'Thursday, November 12, 2026' : 'Thursday, November 19, 2026';
+    }
+  }
+
+  // The meta date line follows the selected target (both dates in both-mode).
+  function updateMetaLine(mode) {
+    const el = document.getElementById('metaDate');
+    if (!el) return;
+    const full = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
+    if (mode === 'preload') {
+      el.textContent = formatEventDate(PRELOAD_DAY, full);
+    } else if (mode === 'both') {
+      const short = { weekday: 'short', month: 'short', day: 'numeric' };
+      el.textContent = `${formatEventDate(PRELOAD_DAY, short)} → ${formatEventDate(RELEASE_DAY, short)}, 2026`;
+    } else {
+      el.textContent = formatEventDate(RELEASE_DAY, full);
+    }
+  }
+
+  function updateSecondaryVisibility(mode) {
+    const sec = document.getElementById('clockSecondary');
+    if (sec) sec.classList.toggle('hidden', mode !== 'both');
+  }
+
+  // 4. Countdown Ticking Engine (dual-event aware)
   function updateCountdown() {
     const now = Date.now();
-    const diff = targetUtcTimestamp - now;
+    const mode = countdownMode();
+    const rel = breakdownDiff(targetUtcRelease - now);
+    const pre = breakdownDiff(targetUtcPreload - now);
 
-    if (diff <= 0) {
-      updateUnitDigits('unit-days', '00');
-      updateUnitDigits('unit-hours', '00');
-      updateUnitDigits('unit-minutes', '00');
-      updateUnitDigits('unit-seconds', '00');
-      document.title = 'GTA VI is OUT! — GTA Clock';
-      // Backup: if the tab is open at midnight but the server push failed,
-      // the page itself validates the time and fires the same notification
-      // (same tag, so it replaces rather than duplicates the server push).
-      maybeFireLocalLaunchAlert();
-      return;
+    if (mode === 'both') {
+      paintEventInto('unit', rel, 'release');
+      paintEventInto('unit-pre', pre, 'preload');
+      // Title follows the nearer upcoming event.
+      const lead = pre || rel;
+      document.title = lead
+        ? `${lead.days}d ${lead.hours}h ${lead.minutes}m ${lead.seconds}s — GTA Clock`
+        : EVENT_META.release.outTitle;
+    } else if (mode === 'preload') {
+      paintEventInto('unit', pre, 'preload');
+      // Live browser tab title update — written on every tick, visible or
+      // not, so background tabs keep tracking (browser-throttled to ~1/min
+      // while hidden; a title write is cheap and causes no layout).
+      document.title = titleFor(pre, 'preload');
+    } else {
+      paintEventInto('unit', rel, 'release');
+      document.title = titleFor(rel, 'release');
     }
-
-    const totalSeconds = Math.floor(diff / 1000);
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    const daysStr = String(days);
-    const hoursStr = String(hours).padStart(2, '0');
-    const minsStr = String(minutes).padStart(2, '0');
-    const secsStr = String(seconds).padStart(2, '0');
-
-    updateUnitDigits('unit-days', daysStr);
-    updateUnitDigits('unit-hours', hoursStr);
-    updateUnitDigits('unit-minutes', minsStr);
-    updateUnitDigits('unit-seconds', secsStr);
-
-    // Live browser tab title update (skipped when hidden — same string will
-    // be written on the next visible tick, saves a layout-adjacent op/sec).
-    if (!document.hidden) {
-      document.title = `${daysStr}d ${hoursStr}h ${minsStr}m ${secsStr}s — GTA Clock`;
-    }
+    updateMetaLine(mode);
+    updateSecondaryVisibility(mode);
   }
 
   // Aligned 1s ticker: setTimeout to the next second boundary instead of a
@@ -331,6 +416,13 @@
       scheduleCountdownTick();
     }, msToNextSecond);
   }
+
+  // Snap the title (and digits) correct the moment the tab is focused
+  // again instead of waiting for the next tick — background ticks are
+  // browser-throttled, so the title may lag up to ~a minute while hidden.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) updateCountdown();
+  });
 
   // 5. Zero-Lag Fast Timezone Search & Render
   let searchDebounceTimer = null;
@@ -502,29 +594,72 @@
     });
   }
 
+  // Calendar events: release + pre-load (both at 00:00 local).
+  const CAL_EVENTS = {
+    release: {
+      title: 'Grand Theft Auto VI Release',
+      uid: 'gta6-launch-20261119@gtaclock.com',
+      date: '20261119',
+      file: 'GTA-6-Release-gtaclock.ics',
+      details: 'Grand Theft Auto VI releases today at midnight local time! Live countdown at gtaclock.com',
+      description: 'Grand Theft Auto VI releases today at midnight! Tracked via gtaclock.com',
+      alarm: 'GTA 6 releases in 1 hour!',
+      info: 'Never miss the launch on November 19, 2026 at 00:00 local time. Choose your calendar:'
+    },
+    preload: {
+      title: 'GTA VI Pre-load Available',
+      uid: 'gta6-preload-20261112@gtaclock.com',
+      date: '20261112',
+      file: 'GTA-6-Preload-gtaclock.ics',
+      details: 'Grand Theft Auto VI is available for pre-load today at midnight local time! Live countdown at gtaclock.com',
+      description: 'GTA VI pre-load opens today at midnight! Tracked via gtaclock.com',
+      alarm: 'GTA 6 pre-load opens in 1 hour!',
+      info: 'Never miss pre-load day on November 12, 2026 at 00:00 local time. Choose your calendar:'
+    }
+  };
+  let calEventKey = 'release';
+
+  function renderCalEvent() {
+    const ev = CAL_EVENTS[calEventKey] || CAL_EVENTS.release;
+    if (gCalLink) {
+      gCalLink.href = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(ev.title)}&dates=${ev.date}T000000/${ev.date}T040000&details=${encodeURIComponent(ev.details)}&location=${encodeURIComponent('Worldwide')}`;
+    }
+    const info = document.getElementById('calModalInfo');
+    if (info) info.textContent = ev.info;
+    document.querySelectorAll('#calEventToggle [data-cal-event]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.calEvent === calEventKey);
+    });
+  }
+
   function setupCalendar() {
-    const gCalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('Grand Theft Auto VI Release')}&dates=20261119T000000/20261119T040000&details=${encodeURIComponent('Grand Theft Auto VI releases today at midnight local time! Live countdown at gtaclock.com')}&location=${encodeURIComponent('Worldwide')}`;
-    if (gCalLink) gCalLink.href = gCalUrl;
+    renderCalEvent();
+    document.querySelectorAll('#calEventToggle [data-cal-event]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        calEventKey = btn.dataset.calEvent === 'preload' ? 'preload' : 'release';
+        renderCalEvent();
+      });
+    });
 
     if (icsBtn) {
       icsBtn.addEventListener('click', () => {
+        const ev = CAL_EVENTS[calEventKey] || CAL_EVENTS.release;
         const icsData = [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
           'PRODID:-//GTA Clock//gtaclock.com//EN',
           'BEGIN:VEVENT',
-          'UID:gta6-launch-20261119@gtaclock.com',
+          `UID:${ev.uid}`,
           'DTSTAMP:20260906T120000Z',
-          'DTSTART:20261119T000000',
-          'DTEND:20261119T040000',
-          'SUMMARY:Grand Theft Auto VI Release',
-          'DESCRIPTION:Grand Theft Auto VI releases today at midnight! Tracked via gtaclock.com',
+          `DTSTART:${ev.date}T000000`,
+          `DTEND:${ev.date}T040000`,
+          `SUMMARY:${ev.title}`,
+          `DESCRIPTION:${ev.description}`,
           'LOCATION:Worldwide',
           'STATUS:CONFIRMED',
           'BEGIN:VALARM',
           'TRIGGER:-PT1H',
           'ACTION:DISPLAY',
-          'DESCRIPTION:GTA 6 releases in 1 hour!',
+          `DESCRIPTION:${ev.alarm}`,
           'END:VALARM',
           'END:VEVENT',
           'END:VCALENDAR'
@@ -533,7 +668,7 @@
         const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.setAttribute('download', 'GTA-6-Release-gtaclock.ics');
+        link.setAttribute('download', ev.file);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -542,211 +677,6 @@
         if (calModal) calModal.classList.add('hidden');
       });
     }
-  }
-
-  // 7. Web Push Notifications (works even when the tab is closed)
-  // Server sends the push at Nov 19 00:00 in YOUR chosen timezone via
-  // Push Service -> Service Worker, so no open tab is required.
-  const VAPID_PUBLIC_KEY = 'BFtiNKeHUlM4wpnNg7Bbn9zcvcz2N987mNjHNDkfDKYRVr95-YoHDPy6KPCBGIA1fKkYgzn_DmoNGhYnFkNfWIM';
-  let swRegistration = null;
-  let pushBusy = false;
-
-  // Convert URL-safe base64 VAPID key to Uint8Array for PushManager
-  function urlBase64ToUint8Array(base64String) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-  }
-
-  function setAlertUI(active) {
-    if (!browserAlertBtn) return;
-    if (active) {
-      browserAlertBtn.classList.add('enabled');
-      if (browserPillText) browserPillText.textContent = 'Alerts On ✓ (tap to cancel)';
-      browserAlertBtn.title = 'Push alerts active for ' + (currentTimeZone || 'your timezone') + ' — click to cancel';
-    } else {
-      browserAlertBtn.classList.remove('enabled');
-      if (browserPillText) browserPillText.textContent = 'Browser Alert';
-      browserAlertBtn.title = 'Get browser notifications on launch day';
-    }
-  }
-
-  async function getExistingSubscription() {
-    if (!swRegistration) return null;
-    try {
-      return await swRegistration.pushManager.getSubscription();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // Push the (possibly changed) timezone to the server so the timer follows it.
-  async function syncSubscriptionTimezone(tz) {
-    try {
-      const sub = await getExistingSubscription();
-      if (!sub) return;
-      await fetch('/api/push-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: sub.endpoint, timezone: tz })
-      });
-    } catch (_) {
-      // Non-fatal: next dispatch still uses the last saved timezone.
-    }
-  }
-
-  async function subscribeForPush() {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      updateBrowserAlertState();
-      showStatus('Notification permission was denied. Enable it in your browser settings.', 'error');
-      return;
-    }
-
-    // Subscribe to push via the Service Worker
-    const subscription = await swRegistration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-
-    // Send subscription + chosen timezone to our server.
-    // Server computes targetUtc = Nov 19 00:00 in that timezone.
-    const response = await fetch('/api/push-subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscription: subscription.toJSON(),
-        timezone: currentTimeZone
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      setAlertUI(true);
-      showStatus(`✓ Push alert set for midnight Nov 19 in ${result.timezone || currentTimeZone}! Works even with the tab closed.`, 'success');
-    } else {
-      // Roll back the browser subscription if the server save failed
-      try { await subscription.unsubscribe(); } catch (_) {}
-      showStatus('Could not save subscription. Please try again.', 'error');
-    }
-  }
-
-  async function unsubscribeFromPush() {
-    const sub = await getExistingSubscription();
-    if (!sub) {
-      setAlertUI(false);
-      return;
-    }
-    const endpoint = sub.endpoint;
-    try {
-      await sub.unsubscribe();
-    } catch (_) {}
-    try {
-      await fetch('/api/push-unsubscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint })
-      });
-    } catch (_) {}
-    setAlertUI(false);
-    showStatus('Push alerts cancelled. You will no longer receive the launch notification.', 'success');
-  }
-
-  async function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) return null;
-    try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      swRegistration = registration;
-      return registration;
-    } catch (err) {
-      console.error('Service Worker registration failed:', err);
-      return null;
-    }
-  }
-
-  async function checkExistingSubscription() {
-    const subscription = await getExistingSubscription();
-    setAlertUI(!!subscription);
-    // If the stored timezone differs (user changed it while unsubscribed-state
-    // was stale), re-sync so the server timer follows the current choice.
-    if (subscription && currentTimeZone) {
-      syncSubscriptionTimezone(currentTimeZone);
-    }
-  }
-
-  function updateBrowserAlertState() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      if (browserAlertBtn) browserAlertBtn.disabled = true;
-      if (browserPillText) browserPillText.textContent = 'Push unsupported';
-      return;
-    }
-
-    if (Notification.permission === 'denied') {
-      if (browserPillText) browserPillText.textContent = 'Alerts Blocked';
-      if (browserAlertBtn) browserAlertBtn.disabled = true;
-    }
-  }
-
-  if (browserAlertBtn) {
-    browserAlertBtn.addEventListener('click', async () => {
-      if (pushBusy) return;
-      if (!swRegistration) {
-        showStatus('Service Worker not ready. Please refresh the page.', 'error');
-        return;
-      }
-
-      pushBusy = true;
-      try {
-        const existing = await getExistingSubscription();
-        if (existing) {
-          // Toggle behaviour: click again to cancel the notification.
-          await unsubscribeFromPush();
-        } else {
-          await subscribeForPush();
-        }
-      } catch (err) {
-        console.error('Push subscription error:', err);
-        showStatus('Could not update push notifications. Please try again.', 'error');
-      } finally {
-        pushBusy = false;
-      }
-    });
-  }
-
-  // Backup path: page validates its own countdown and notifies directly.
-  // Only fires when the tab is open at zero AND the user is subscribed.
-  // Same 'gta6-launch' tag as the server push, so the two can never stack.
-  let localAlertFired = false;
-  async function maybeFireLocalLaunchAlert() {
-    if (localAlertFired) return;
-    try {
-      if (localStorage.getItem('gtaclock_zero_notified') === '1') {
-        localAlertFired = true;
-        return;
-      }
-    } catch (_) {}
-    localAlertFired = true;
-    try {
-      const sub = await getExistingSubscription();
-      if (!sub || !swRegistration) return;
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      await swRegistration.showNotification('GTA 6 is HERE! 🎮', {
-        body: 'Grand Theft Auto VI has launched in your timezone — the countdown is over, go play!',
-        icon: '/assets/gta-vi-logo.png',
-        badge: '/assets/gta-vi-logo.png',
-        tag: 'gta6-launch',
-        renotify: true,
-        requireInteraction: true,
-        data: { url: 'https://gtaclock.com' }
-      });
-      try { localStorage.setItem('gtaclock_zero_notified', '1'); } catch (_) {}
-    } catch (_) {}
   }
 
   function showStatus(text, type) {
@@ -761,8 +691,7 @@
     }, 4500);
   }
 
-  // 8. Appearance Customization (top-right panel, persisted in localStorage)
-  // NOTE: soundBtn is intentionally inert for now (coming soon).
+  // 7. Appearance Customization (top-right panel, persisted in localStorage)
   const customBtn = document.getElementById('customBtn');
   const customPanel = document.getElementById('customPanel');
   const closeCustomPanel = document.getElementById('closeCustomPanel');
@@ -770,7 +699,8 @@
 
   const CUSTOM_KEY = 'gtaclock_custom';
   const CUSTOM_DEFAULTS = {
-    bg: '01.jpg', // filename in public/backgrounds/, or 'none'
+    bg: 'parallax:01', // 'none' | filename in public/backgrounds/ | 'parallax:<dir>'
+    countdownTarget: 'release', // 'release' | 'preload' | 'both'
     slideshow: true, // GTA loading-screen style Ken Burns slideshow
     showEmblem: true,
     showMeta: true,
@@ -800,35 +730,47 @@
     'ultra-minimal': {
       name: 'Ultra Minimal',
       desc: 'Bare digits on solid black. Nothing else.',
-      settings: { bg: 'none', slideshow: false, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: false, showActions: false, showBloom: false, digitScale: 1.2, emblemScale: 1 }
+      settings: { bg: 'none', countdownTarget: 'release', slideshow: false, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: false, showActions: false, showBloom: false, digitScale: 1.2, emblemScale: 1 }
     },
     'minimal': {
       name: 'Minimal',
       desc: 'Logo, digits and labels. Calm and clean.',
-      settings: { bg: '01.jpg', slideshow: true, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: true, showActions: false, showBloom: true, digitScale: 1, emblemScale: 1 }
+      settings: { bg: 'parallax:01', countdownTarget: 'release', slideshow: true, showEmblem: false, showMeta: false, showPlatforms: false, showLabels: true, showActions: false, showBloom: true, digitScale: 1, emblemScale: 1 }
     },
     'informative': {
       name: 'Informative',
       desc: 'The full experience, tastefully sized.',
-      settings: { bg: '01.jpg', slideshow: true, showEmblem: false, showMeta: true, showPlatforms: false, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
+      settings: { bg: 'parallax:01', countdownTarget: 'release', slideshow: true, showEmblem: false, showMeta: true, showPlatforms: false, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
     },
     'extra-informative': {
       name: 'Extra Informative',
       desc: 'Everything on, digits turned up.',
-      settings: { bg: '01.jpg', slideshow: true, showEmblem: true, showMeta: true, showPlatforms: true, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
+      settings: { bg: 'parallax:01', countdownTarget: 'release', slideshow: true, showEmblem: true, showMeta: true, showPlatforms: true, showLabels: true, showActions: true, showBloom: true, digitScale: 1, emblemScale: 1 }
     }
   };
-  const PRESET_KEYS = ['bg', 'slideshow', 'showEmblem', 'showMeta', 'showPlatforms', 'showLabels', 'showActions', 'showBloom', 'digitScale', 'emblemScale'];
+  const PRESET_KEYS = ['bg', 'countdownTarget', 'slideshow', 'showEmblem', 'showMeta', 'showPlatforms', 'showLabels', 'showActions', 'showBloom', 'digitScale', 'emblemScale'];
   const ONBOARD_KEY = 'gtaclock_onboarded';
 
   function loadCustomSettings() {
     try {
       const raw = localStorage.getItem(CUSTOM_KEY);
       if (!raw) return { ...CUSTOM_DEFAULTS };
-      return { ...CUSTOM_DEFAULTS, ...JSON.parse(raw) };
+      const parsed = { ...CUSTOM_DEFAULTS, ...JSON.parse(raw) };
+      if (!['release', 'preload', 'both'].includes(parsed.countdownTarget)) {
+        parsed.countdownTarget = 'release';
+      }
+      return parsed;
     } catch (_) {
       return { ...CUSTOM_DEFAULTS };
     }
+  }
+
+  function setCountdownTarget(mode) {
+    if (!['release', 'preload', 'both'].includes(mode)) return;
+    customSettings.countdownTarget = mode;
+    persistCustomSettings();
+    updateCountdown();
+    syncCustomPanelControls();
   }
 
   let customSettings = loadCustomSettings();
@@ -1036,10 +978,18 @@
       btn.title = entry.name;
 
       const img = document.createElement('img');
-      img.src = entry.thumb || (isPx ? entry.thumb : entry.url);
+      img.src = entry.thumb || (isPx ? entry.full : entry.url);
       img.alt = entry.name + ' background';
       img.loading = 'lazy';
       img.decoding = 'async';
+      // One-shot fallback to the full image if the thumb 404s (e.g. stale
+      // manifest) — a tile must never render broken.
+      img.onerror = () => {
+        const fallback = isPx ? entry.full : entry.url;
+        if (fallback && img.src !== new URL(fallback, location.href).href) {
+          img.src = fallback;
+        }
+      };
 
       const label = document.createElement('span');
       label.textContent = entry.name;
@@ -1207,6 +1157,11 @@
   let pxFadeTimer = null;
   let pxVariant = 0;
   let lastPxId = null;
+  // Guards the async first-slide fade: a stale decode wait must never
+  // re-show the stage after the slideshow stopped or moved on.
+  let pxPresentToken = 0;
+  // Cap for the first-slide decode wait — cached visits resolve instantly.
+  const PX_FIRST_FADE_WAIT_MS = 900;
 
   function pxStage() {
     return document.getElementById('pxStage');
@@ -1231,10 +1186,12 @@
   }
 
   // Drive one full glide on the compositor: snap to the start pose, then a
-  // single 10s ease-out transition to the end pose — fast open, slowly
-  // coming to a halt. No per-frame JS, so the motion stays smooth no matter
-  // how busy the main thread gets — and it parks itself at the end pose
-  // when done (no restart, no reversal).
+  // single 10s ease-in-out transition to the end pose — gentle start, steady
+  // cruise through the hold, soft landing right at the slide change.
+  // No per-frame JS, so the motion stays smooth no matter how busy the main
+  // thread gets — and it parks itself at the end pose when done (no restart,
+  // no reversal). Keep PX_EASE in sync with the kb-* drifts in style.css.
+  const PX_EASE = 'cubic-bezier(0.37, 0, 0.63, 1)';
   function drivePxMotion() {
     const d = PX_DIRECTIONS[pxVariant % PX_DIRECTIONS.length];
     const reduced = pxReducedMotion();
@@ -1252,7 +1209,7 @@
     if (stage) void stage.offsetWidth; // flush so the transition below animates
     pairs.forEach(([layer, pose]) => {
       if (!layer) return;
-      layer.style.transition = `transform ${PX_DRIFT_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`;
+      layer.style.transition = `transform ${PX_DRIFT_MS}ms ${PX_EASE}`;
       layer.style.transform = pxPoseStyle({ x: pose.x1, y: pose.y1, s: pose.s1 });
     });
   }
@@ -1289,18 +1246,65 @@
     if (stage) stage.classList.toggle('px-on', visible);
   }
 
-  // Show a parallax pack: stage the start poses, fade the stage in over the
-  // current slide, then drive the glide; sync the flat layer beneath
-  // (invisibly) so later fades stay seamless.
-  function presentParallax(entry) {
+  // Resolve once url is decoded (or failed / timed out) — never rejects,
+  // so the fade below always proceeds.
+  function pxSceneReady(url, timeoutMs) {
+    return new Promise((resolve) => {
+      if (!url) { resolve(); return; }
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      const timer = setTimeout(finish, timeoutMs);
+      try {
+        const img = new Image();
+        img.decoding = 'async';
+        img.onload = () => { clearTimeout(timer); finish(); };
+        img.onerror = () => { clearTimeout(timer); finish(); };
+        img.src = url;
+        if (typeof img.decode === 'function') {
+          img.decode()
+            .then(() => { clearTimeout(timer); finish(); })
+            .catch(() => { clearTimeout(timer); finish(); });
+        }
+      } catch (_) {
+        clearTimeout(timer);
+        finish();
+      }
+    });
+  }
+
+  // Show a parallax pack: stage the start poses, fade the stage in, then
+  // drive the glide; sync the flat layer beneath (invisibly) so later
+  // fades stay seamless.
+  // First slide of a page load additionally paints the flat scene beneath
+  // synchronously and waits for it to decode before fading: otherwise the
+  // static CSS fallback (01) bleeds through the 1s fade-in while the stage
+  // is still transparent. Mid-show flat -> parallax transitions keep the
+  // old crossfade-over-previous-scene behaviour (no beneath prep there).
+  function presentParallax(entry, isFirst) {
     setPxImages(entry);
-    setStageOpacity(true);
-    drivePxMotion();
+    if (!isFirst) {
+      setStageOpacity(true);
+      drivePxMotion();
+      clearTimeout(pxFadeTimer);
+      pxFadeTimer = setTimeout(() => {
+        const layers = getBackdropLayers();
+        prepStandardLayer(layers[frontLayer], entry.full);
+      }, PX_FADE_MS + 300);
+      return;
+    }
+    const scene = entry.full || entry.background;
+    getBackdropLayers().forEach((layer) => prepStandardLayer(layer, scene));
+    const token = ++pxPresentToken;
     clearTimeout(pxFadeTimer);
-    pxFadeTimer = setTimeout(() => {
-      const layers = getBackdropLayers();
-      prepStandardLayer(layers[frontLayer], entry.full);
-    }, PX_FADE_MS + 300);
+    pxSceneReady(scene, PX_FIRST_FADE_WAIT_MS).then(() => {
+      if (token !== pxPresentToken || !customSettings.slideshow) return;
+      setStageOpacity(true);
+      drivePxMotion();
+      clearTimeout(pxFadeTimer);
+      pxFadeTimer = setTimeout(() => {
+        prepStandardLayer(getBackdropLayers()[frontLayer], entry.full);
+      }, PX_FADE_MS + 300);
+    });
   }
 
   // Dip out and back in for parallax -> parallax slide changes: the new
@@ -1319,6 +1323,7 @@
 
   function hideParallaxStage() {
     clearTimeout(pxFadeTimer);
+    pxPresentToken++; // cancel any pending first-slide fade
     setStageOpacity(false);
   }
 
@@ -1357,7 +1362,7 @@
       if (!isFirst && parallaxStageVisible) {
         dipParallaxStage(entry);
       } else {
-        presentParallax(entry);
+        presentParallax(entry, isFirst);
       }
       return;
     }
@@ -1485,7 +1490,11 @@
       btn.classList.toggle('active', btn.dataset.bg === customSettings.bg);
     });
     customPanel.querySelectorAll('.preset-strip-btn').forEach(btn => {
+      if (btn.dataset.target) return;
       btn.classList.toggle('active', presetMatches(btn.dataset.preset));
+    });
+    customPanel.querySelectorAll('#targetStrip [data-target]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.target === countdownMode());
     });
     customPanel.querySelectorAll('input[type="checkbox"][data-setting]').forEach(input => {
       input.checked = !!customSettings[input.dataset.setting];
@@ -1541,6 +1550,8 @@
     const soundBtnEl = document.getElementById('soundBtn');
     if (musicPanelEl && !musicPanelEl.classList.contains('hidden') && musicPanelEl.contains(target)) return true;
     if (soundBtnEl && soundBtnEl.contains(target)) return true;
+    const soundWrapEl = document.getElementById('soundWrap');
+    if (soundWrapEl && soundWrapEl.contains(target)) return true;
     return false;
   }
 
@@ -1557,6 +1568,7 @@
     if (e.key === 'Escape') {
       closeCustomPanelFn();
       closeMusicPanelFn();
+      if (typeof collapseSoundPill === 'function') collapseSoundPill();
       const overlay = document.getElementById('onboardOverlay');
       if (overlay && !overlay.classList.contains('hidden')) hideOnboarding(true);
     }
@@ -1566,7 +1578,12 @@
     // NOTE: .bg-preset buttons are rendered dynamically by renderBgPresets()
     // with their own click handlers (the list comes from /api/backgrounds).
     customPanel.querySelectorAll('.preset-strip-btn').forEach(btn => {
+      if (btn.dataset.target) return; // countdown target strip: own handler below
       btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+    });
+    // Countdown target segmented control (Release | Pre-load | Both).
+    customPanel.querySelectorAll('#targetStrip [data-target]').forEach(btn => {
+      btn.addEventListener('click', () => setCountdownTarget(btn.dataset.target));
     });
     customPanel.querySelectorAll('input[type="checkbox"][data-setting]').forEach(input => {
       input.addEventListener('change', () => {
@@ -1605,7 +1622,7 @@
     });
   }
 
-  // 9. Music / OST player (speaker icon, persisted track + volume)
+  // 8. Music / OST player (speaker icon, persisted track + volume)
   // Tracks come from /api/ost (fallback: /ost/manifest.json), so any audio
   // added to public/ost/ appears automatically. Plays by default; if the
   // browser blocks autoplay it starts on the first tap/keypress.
@@ -1619,11 +1636,21 @@
   const trackNameEl = document.getElementById('trackName');
   const volumeSlider = document.getElementById('volumeSlider');
   const volumeVal = document.getElementById('volumeVal');
+  const soundWrap = document.getElementById('soundWrap');
+  const soundSlider = document.getElementById('soundSlider');
+  const iconVolHigh = document.getElementById('iconVolHigh');
+  const iconVolLow = document.getElementById('iconVolLow');
+  const iconVolMute = document.getElementById('iconVolMute');
+  const playRingFg = document.getElementById('playRingFg');
+  const loopBtn = document.getElementById('loopBtn');
+  const iconLoopSingle = document.getElementById('iconLoopSingle');
+  const iconLoopQueue = document.getElementById('iconLoopQueue');
 
   const MUSIC_KEY = 'gtaclock_music';
   const MUSIC_DEFAULTS = {
     track: 'GTA-VI-OST.mp3',
-    volume: 0.7
+    volume: 0.7,
+    loopMode: 'single' // 'single' = repeat this track forever | 'queue' = loop all tracks
   };
 
   function loadMusicSettings() {
@@ -1632,6 +1659,7 @@
       if (!raw) return { ...MUSIC_DEFAULTS };
       const parsed = { ...MUSIC_DEFAULTS, ...JSON.parse(raw) };
       parsed.volume = Math.min(1, Math.max(0, Number(parsed.volume) || 0));
+      if (parsed.loopMode !== 'queue' && parsed.loopMode !== 'single') parsed.loopMode = 'single';
       return parsed;
     } catch (_) {
       return { ...MUSIC_DEFAULTS };
@@ -1651,14 +1679,58 @@
   function ensureAudio() {
     if (audioEl) return audioEl;
     audioEl = new Audio();
-    audioEl.loop = true;
-    // 'none' until the user actually wants music: the three OST files are
-    // ~13MB and preload='auto' fetched one immediately on every page load.
+    // 'none' until the user actually wants music: the OST files are
+    // multi-MB and preload='auto' would fetch one on every page load.
     audioEl.preload = 'none';
     audioEl.volume = musicSettings.volume;
     audioEl.addEventListener('play', syncPlayUI);
     audioEl.addEventListener('pause', syncPlayUI);
+    audioEl.addEventListener('ended', onTrackEnded);
+    audioEl.addEventListener('timeupdate', updatePlayRing);
+    audioEl.addEventListener('loadedmetadata', resetPlayRing);
+    applyLoopMode();
+    resetPlayRing();
     return audioEl;
+  }
+
+  // 'ended' only fires when audio.loop is false (queue mode) — single mode
+  // repeats seamlessly via the loop flag and never reaches here.
+  function onTrackEnded() {
+    resetPlayRing();
+    if (musicSettings.loopMode !== 'queue') return;
+    if (availableTracks.length < 2) return;
+    const idx = availableTracks.findIndex(t => t.file === musicSettings.track);
+    const next = availableTracks[(idx + 1) % availableTracks.length];
+    if (next) selectTrack(next.file, true);
+  }
+
+  function applyLoopMode() {
+    const queue = musicSettings.loopMode === 'queue';
+    if (audioEl) audioEl.loop = !queue;
+    if (iconLoopSingle) iconLoopSingle.classList.toggle('hidden', queue);
+    if (iconLoopQueue) iconLoopQueue.classList.toggle('hidden', !queue);
+    if (loopBtn) {
+      loopBtn.classList.toggle('active', queue);
+      loopBtn.title = queue ? 'Looping all tracks — click for single-track loop' : 'Looping this track — click to loop all tracks';
+      loopBtn.setAttribute('aria-label', queue ? 'Loop all tracks' : 'Loop this track');
+    }
+  }
+
+  // Play progress ring around the play/pause button (display-only).
+  const PLAY_RING_C = 2 * Math.PI * 19; // matches r="19" in the SVG
+  function resetPlayRing() {
+    if (!playRingFg) return;
+    playRingFg.style.strokeDasharray = String(PLAY_RING_C);
+    playRingFg.style.strokeDashoffset = String(PLAY_RING_C);
+  }
+
+  function updatePlayRing() {
+    if (!playRingFg || !audioEl) return;
+    const dur = audioEl.duration;
+    if (!dur || !isFinite(dur) || dur <= 0) { resetPlayRing(); return; }
+    const frac = Math.min(1, Math.max(0, audioEl.currentTime / dur));
+    playRingFg.style.strokeDasharray = String(PLAY_RING_C);
+    playRingFg.style.strokeDashoffset = String(PLAY_RING_C * (1 - frac));
   }
 
   function currentTrack() {
@@ -1723,6 +1795,7 @@
       if (p && typeof p.catch === 'function') p.catch(() => {});
     }
     renderTrackList();
+    resetPlayRing();
   }
 
   function selectTrack(file, autoplay) {
@@ -1734,6 +1807,14 @@
   function syncVolumeUI() {
     if (volumeSlider) volumeSlider.value = Math.round(musicSettings.volume * 100);
     if (volumeVal) volumeVal.textContent = Math.round(musicSettings.volume * 100) + '%';
+    // The infused pill slider is mirrored (RTL): same value, browser flips it.
+    if (soundSlider) soundSlider.value = Math.round(musicSettings.volume * 100);
+    // YouTube-style speaker icon: mute / low / high by level.
+    const muted = musicSettings.volume <= 0;
+    const low = !muted && musicSettings.volume <= 0.5;
+    if (iconVolMute) iconVolMute.classList.toggle('hidden', !muted);
+    if (iconVolLow) iconVolLow.classList.toggle('hidden', muted || !low);
+    if (iconVolHigh) iconVolHigh.classList.toggle('hidden', muted || low);
     if (audioEl) audioEl.volume = musicSettings.volume;
   }
 
@@ -1793,10 +1874,18 @@
     tryAutoplay();
   }
 
+  function setVolumeFromSlider(value) {
+    musicSettings.volume = Math.min(100, Math.max(0, Number(value) || 0)) / 100;
+    persistMusicSettings();
+    syncVolumeUI();
+  }
+
   function openMusicPanel() {
     if (!musicPanel) return;
+    collapseSoundPill();
     renderTrackList();
     syncVolumeUI();
+    applyLoopMode();
     musicPanel.classList.remove('hidden');
   }
 
@@ -1840,11 +1929,47 @@
   }
 
   if (volumeSlider) {
-    volumeSlider.addEventListener('input', () => {
-      musicSettings.volume = Math.min(100, Math.max(0, Number(volumeSlider.value) || 0)) / 100;
+    volumeSlider.addEventListener('input', () => setVolumeFromSlider(volumeSlider.value));
+  }
+
+  if (soundSlider) {
+    // Slider lives in the pill (sibling of the button), so its drags never
+    // reach the button's click-to-toggle handler — no stopPropagation needed.
+    soundSlider.addEventListener('input', () => setVolumeFromSlider(soundSlider.value));
+  }
+
+  if (loopBtn) {
+    loopBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      musicSettings.loopMode = musicSettings.loopMode === 'queue' ? 'single' : 'queue';
       persistMusicSettings();
-      syncVolumeUI();
+      applyLoopMode();
     });
+  }
+
+  // Infused volume pill: hovering the speaker wrapper expands the slider
+  // leftward (desktop hover; touch users tap through to the full panel).
+  // The pill is inside the wrapper, so sliding button -> slider never fires
+  // mouseleave — a plain grace timer on leave is enough.
+  let soundPillHideTimer = null;
+  function expandSoundPill() {
+    if (!soundWrap) return;
+    clearTimeout(soundPillHideTimer);
+    syncVolumeUI();
+    soundWrap.classList.add('expanded');
+  }
+  function collapseSoundPill() {
+    if (!soundWrap) return;
+    clearTimeout(soundPillHideTimer);
+    soundWrap.classList.remove('expanded');
+  }
+  function scheduleCollapseSoundPill() {
+    clearTimeout(soundPillHideTimer);
+    soundPillHideTimer = setTimeout(collapseSoundPill, 250);
+  }
+  if (soundWrap) {
+    soundWrap.addEventListener('mouseenter', expandSoundPill);
+    soundWrap.addEventListener('mouseleave', scheduleCollapseSoundPill);
   }
 
   // Initialization — critical path stays lean: countdown + static paint
@@ -1882,12 +2007,6 @@
 
   // Countdown ticker is driven by scheduleCountdownTick() (aligned to the
   // second boundary) — no setInterval here.
-
-  // Register Service Worker and check push state
-  registerServiceWorker().then(() => {
-    updateBrowserAlertState();
-    checkExistingSubscription();
-  });
 
   setupCalendar();
 

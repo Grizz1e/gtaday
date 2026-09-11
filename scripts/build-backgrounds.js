@@ -33,9 +33,9 @@ function optimizedThumbUrl(publicUrl) {
   const rel = String(publicUrl || '').replace(/^\//, '');
   if (!rel) return null;
   const thumbRel = rel.replace(/\.[^.]+$/, '.thumb.jpg');
-  const abs = path.join(OPTIMIZED_DIR, thumbRel.replace(/^backgrounds\//, 'backgrounds/'));
+  const abs = path.join(OPTIMIZED_DIR, thumbRel.replace(/^backgrounds\//, ''));
   try {
-    if (fs.existsSync(abs)) return `/backgrounds/.optimized/${thumbRel.replace(/^backgrounds\//, '')}`;
+    if (fs.existsSync(abs)) return `/backgrounds/optimized/${thumbRel.replace(/^backgrounds\//, '')}`;
   } catch (_) {}
   return null;
 }
@@ -152,7 +152,10 @@ function writeManifest(manifestPath, entries) {
 // step logs a warning and the existing JPGs keep serving untouched.
 // Heroes cap at 1920w q75 (the 2MB+ JPGs drop to ~200-400KB); thumbs are
 // 320w q50 (~10-20KB) instead of reusing the full hero.
-const OPTIMIZED_DIR = path.join(BACKGROUNDS_DIR, '.optimized');
+// NOTE: intentionally NOT dot-prefixed — dot-directories are not served by
+// express.static (dotfiles:'ignore') nor by Vercel static hosting, which is
+// exactly why the old .optimized/ thumbs 404'd and previews broke.
+const OPTIMIZED_DIR = path.join(BACKGROUNDS_DIR, 'optimized');
 const HERO_MAX_W = 1920;
 const THUMB_W = 320;
 
@@ -176,7 +179,10 @@ async function optimizeImages() {
       if (!fs.existsSync(src)) continue;
       const ext = path.extname(src).toLowerCase();
       if (ext === '.gif') continue; // never re-encode animation
-      const base = path.join(OPTIMIZED_DIR, rel);
+      // Strip the 'backgrounds/' prefix so outputs land directly in
+      // optimized/ — matching optimizedThumbUrl() and the manifest URLs
+      // (/backgrounds/optimized/<name>.thumb.jpg).
+      const base = path.join(OPTIMIZED_DIR, rel.replace(/^backgrounds\//, ''));
       const webp = base.replace(/\.[^.]+$/, '.webp');
       const thumb = base.replace(/\.[^.]+$/, '.thumb.jpg');
       const newest = [webp, thumb].every((f) => {
@@ -193,7 +199,7 @@ async function optimizeImages() {
       done++;
     }
     if (entry.kind === 'parallax' && entry.thumb === entry.full) {
-      const thumbUrl = entry.full ? entry.full.replace(/\.[^.]+$/, '.thumb.jpg').replace('/backgrounds/', '/backgrounds/.optimized/') : null;
+      const thumbUrl = entry.full ? entry.full.replace(/\.[^.]+$/, '.thumb.jpg').replace('/backgrounds/', '/backgrounds/optimized/') : null;
       if (thumbUrl) entry.thumb = thumbUrl;
     }
   }
