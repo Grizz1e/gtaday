@@ -12,10 +12,10 @@
 
   // Countdown events — both fire at 00:00 local time in the viewer's timezone.
   const RELEASE_DAY = 19;
-  const PRELOAD_DAY = 12;
+  const PRELOAD_DAY = 10;
   const EVENT_META = {
     release: { day: 19, outTitle: 'GTA VI is OUT! — GTA Clock' },
-    preload: { day: 12, outTitle: 'GTA VI pre-load is LIVE! — GTA Clock' }
+    preload: { day: 10, outTitle: 'GTA VI pre-load is LIVE! — GTA Clock' }
   };
 
   // DOM Elements
@@ -354,7 +354,7 @@
       const d = new Date(calculateTargetUtc(currentTimeZone || 'UTC', day));
       return new Intl.DateTimeFormat('en-US', { timeZone: currentTimeZone || 'UTC', ...opts }).format(d);
     } catch (_) {
-      return day === PRELOAD_DAY ? 'Thursday, November 12, 2026' : 'Thursday, November 19, 2026';
+      return day === PRELOAD_DAY ? 'Tuesday, November 10, 2026' : 'Thursday, November 19, 2026';
     }
   }
 
@@ -608,13 +608,13 @@
     },
     preload: {
       title: 'GTA VI Pre-load Available',
-      uid: 'gta6-preload-20261112@gtaclock.com',
-      date: '20261112',
+      uid: 'gta6-preload-20261110@gtaclock.com',
+      date: '20261110',
       file: 'GTA-6-Preload-gtaclock.ics',
       details: 'Grand Theft Auto VI is available for pre-load today at midnight local time! Live countdown at gtaclock.com',
       description: 'GTA VI pre-load opens today at midnight! Tracked via gtaclock.com',
       alarm: 'GTA 6 pre-load opens in 1 hour!',
-      info: 'Never miss pre-load day on November 12, 2026 at 00:00 local time. Choose your calendar:'
+      info: 'Never miss pre-load day on November 10, 2026 at 00:00 local time. Choose your calendar:'
     }
   };
   let calEventKey = 'release';
